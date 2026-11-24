@@ -157,6 +157,7 @@
       popFx(K.fxTexture('heart'), head.clone().add(V(0.35 + 0.15 * i, 0.45 + 0.05 * i, 0.1)), 0.2, 1.4, V(0.06, 0.3, 0), 1, 0.25 * i);
     }
     reportHunger(t);
+    K.talk.event('fed');
   }
 
   function startAct(kind, t) {
@@ -170,7 +171,7 @@
   // pointer (`fromPointer`) lets it play out; the eyes follow the pointer meanwhile.
   function wake(t, fromPointer = false) {
     const wasAsleep = S.asleep || S.sleep > 0.3;
-    if (wasAsleep) { S.wakeAt = t; poke(TUNING.wakeAnnoy / 100, t); }
+    if (wasAsleep) { S.wakeAt = t; poke(TUNING.wakeAnnoy / 100, t); K.talk.event('woken'); }
     S.asleep = false;
     S.yawned = false;
     S.lastInput = t;
@@ -216,6 +217,7 @@
     paw.key = k;
     paw.t0 = t;
     paw.dur = clamp(paw.pos.distanceTo(keyboard.keyTop(k, tmp)) * 0.09, 0.05, 0.1);
+    K.talk.key();
     // Typing burns a little energy; a very hungry cat's paws are a touch slower.
     if (TUNING.hungerOn) {
       S.full = Math.max(0, S.full - TUNING.typeCost / 1000);
@@ -440,6 +442,8 @@
     // and the bowl waits. When the bowl is empty it licks its lips, looks happy and the bowl goes.
     digest();
     if (t - S.hungerReported > 15) reportHunger(t);
+    if (hungry() && !S.wasHungry) K.talk.event('hungry');
+    S.wasHungry = hungry();
     const meal = S.meal;
     let eating = false, mealLook = 0, refusing = 0;
     if (meal) {
@@ -669,7 +673,7 @@
     blink = Math.max(blink, 0.6 * knead, 0.45 * eat, starve * (0.4 + 0.12 * Math.sin(t * 1.7)) * (1 - flop) * (1 - beg));
     const closed = (pet && !S.cross) || S.sleep > 0.5 || yawn > 0.5 || shakeEnv > 0.3 || refusing > 0.5 || happy > 0.4;
     // Chewing: the mouth opens and closes a little, quickly.
-    cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow));
+    cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow, K.talk.mouth()));
     // Excited and curious cats' pupils go wide and round (curious most of all, up to the size set
     // in the 调节 window); cross ones narrow to slits under heavy lids. The pupil never grows past
     // the iris, so it stays a black disc inside a coloured ring.
@@ -751,6 +755,9 @@
       fx.sprite.material.opacity = fx.kind === 'bang' ? 1 - smooth(0.5, 1, u) : 0.9 * (1 - u);
     }
     for (const arm of cat.arms) cat.updateArm(arm, arm.s < 0 ? paws.L.pos : paws.R.pos);
+    cat.headPivot.updateMatrixWorld();
+    K.talk.update(screen(V(0, 1.12, 0.08).applyMatrix4(cat.headPivot.matrixWorld), V()), quietFor, S.sleep > 0.5);
+    if (K.talk.showing()) S.busyUntil = Math.max(S.busyUntil, t + 0.5);
 
     for (let i = popups.length - 1; i >= 0; i--) {
       const p = popups[i], age = t - p.t0;
@@ -840,6 +847,8 @@
     // The 调节 window's 让它饿了 / 让它吃饱 buttons.
     hungryNow() { S.full = 6; S.fullAt = Date.now(); reportHunger(now()); window.cat.act('rumble'); },
     fullNow() { S.full = 100; S.fullAt = Date.now(); reportHunger(now()); },
+    // The 调节 window's 说句话试试 button.
+    talkNow() { K.talk.sayNow(); S.busyUntil = now() + 6; },
     // Forced, it plays even with fidgets switched off (the 调节 window's 试试 buttons).
     act(kind) {
       if (!(kind in ACTS)) return false;
@@ -863,6 +872,7 @@
         S.petUntil = t + 0.9;
         const hs = screen(cat.head.getWorldPosition(tmp2), V());
         S.petX = (x - hs.x) / 120;
+        if (!S.petting || t - S.petStart < 0.05) K.talk.event('pet');
         wake(t);
       }
     },

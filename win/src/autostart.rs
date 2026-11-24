@@ -23,7 +23,7 @@ mod imp {
     use super::Mode;
 
     const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    const NAME: &str = "KeyCat";
+    const NAME: &str = "GanganCat";
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     fn user() -> String {
@@ -32,7 +32,7 @@ mod imp {
 
     /// One task per Windows account, so two people on one PC don't overwrite each other's.
     fn task_name() -> String {
-        format!("KeyCat ({})", user())
+        format!("GanganCat ({})", user())
     }
 
     fn schtasks(args: &[&str]) -> Result<Output> {
@@ -63,7 +63,7 @@ mod imp {
         let xml = format!(
             r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>Starts KeyCat as administrator at login.</Description></RegistrationInfo>
+  <RegistrationInfo><Description>Starts GanganCat as administrator at login.</Description></RegistrationInfo>
   <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{account}</UserId></LogonTrigger></Triggers>
   <Principals>
     <Principal id="Author"><UserId>{account}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal>

@@ -44,6 +44,7 @@
   <button data-test="act:shake">抖毛</button>
 </div>
 <div class="bar">
+  <button data-test="talk">说句话试试</button>
   <button data-test="hungry">让它饿了</button>
   <button data-test="full">让它吃饱</button>
 </div>
@@ -108,7 +109,7 @@ function show() {
     else { input.value = values[it.key]; input.show(values[it.key]); }
   }
   // A switched-off group greys out its sliders.
-  for (const [toggle, group] of [['annoyOn', TUNING_SCHEMA[0].group], ['curiousOn', TUNING_SCHEMA[1].group], ['idleOn', TUNING_SCHEMA[2].group], ['hungerOn', TUNING_SCHEMA[3].group]]) {
+  for (const [toggle, group] of [['annoyOn', TUNING_SCHEMA[0].group], ['curiousOn', TUNING_SCHEMA[1].group], ['idleOn', TUNING_SCHEMA[2].group], ['talkOn', TUNING_SCHEMA[3].group], ['hungerOn', TUNING_SCHEMA[4].group]]) {
     for (const { it, row } of Object.values(inputs)) {
       if (row.dataset.group === group && it.key !== toggle) row.classList.toggle('off', !values[toggle]);
     }

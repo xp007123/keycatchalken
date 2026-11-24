@@ -43,6 +43,14 @@ const TUNING_SCHEMA = [
       hint: '歪头、抖耳朵、慢眨眼、看旁边、甩尾巴。' },
     { key: 'sleepYawn', label: '睡着前打个哈欠', type: 'toggle', def: true },
   ] },
+  { group: '气泡（陪杆杆）', items: [
+    { key: 'talkOn', label: '会说话', type: 'toggle', def: true,
+      hint: '猫头顶冒气泡：打招呼、提醒吃饭和休息、给杆杆加油。只在停手时冒出来，不打扰打字。' },
+    { key: 'talkEvery', label: '随机鼓励多久一条', type: 'range', min: 10, max: 120, step: 5, def: 30, unit: '分钟',
+      hint: '大概的间隔，会有些随机。吃饭、下班这类到点提醒不受影响。' },
+    { key: 'restEvery', label: '连续工作多久提醒休息', type: 'range', min: 0, max: 120, step: 10, def: 50, unit: '分钟',
+      hint: '0 表示不提醒。中间停手超过 5 分钟就重新计时。' },
+  ] },
   { group: '饥饿', items: [
     { key: 'hungerOn', label: '会饿', type: 'toggle', def: true,
       hint: '猫会慢慢饿，右键菜单里可以喂它。饿了会盯着你、舔嘴、想小鱼干，很饿时肚子咕咕叫；不会饿坏，也不影响打字。' },

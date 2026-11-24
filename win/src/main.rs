@@ -37,16 +37,17 @@ use autostart::Mode;
 use hook::{Button, Input};
 use store::Store;
 
-const DESIGN: (f64, f64) = (360.0, 368.0); // mac/App.swift designSize at scale 1
+// Taller than mac/App.swift designSize: this build keeps room above the head for speech bubbles.
+const DESIGN: (f64, f64) = (360.0, 402.0);
 const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
 const TRAY: &str = "tray";
 const DEV: bool = cfg!(debug_assertions);
-/// Off in this build: it is a customised KeyCat, and the official releases would replace it.
+/// Off in this build: it is 杆杆's own KeyCat, and the official releases would replace it.
 /// No update is checked for, downloaded or installed, and the menu only shows the version.
 const AUTO_UPDATE: bool = false;
 /// tauri.conf.json `identifier`, which names the app data folder in %APPDATA%.
-const IDENTIFIER: &str = "com.ellobok.keycat";
+const IDENTIFIER: &str = "com.chalken.gangancat";
 
 // The web scene talks to its host through `window.webkit.messageHandlers.<name>.postMessage`,
 // the WKWebView bridge the mac build uses. Recreate that shape on top of Tauri IPC so web/ stays
@@ -288,7 +289,7 @@ fn create_panel(app: &AppHandle) -> tauri::Result<()> {
     let scale = host(app).settings().scale;
     let size = window_size(scale);
     let panel = WebviewWindowBuilder::new(app, PANEL, WebviewUrl::App("index.html".into()))
-        .title("KeyCat")
+        .title("杆杆的猫")
         .inner_size(size.width, size.height)
         .visible(false)
         .decorations(false)
@@ -598,6 +599,7 @@ fn on_settings_message(app: &AppHandle, body: &Value) {
         let call = match test {
             "annoy" => "cat.annoyNow()".to_string(),
             "curious" => "cat.curiousNow(3)".to_string(),
+            "talk" => "cat.talkNow()".to_string(),
             "hungry" => "cat.hungryNow()".to_string(),
             "full" => "cat.fullNow()".to_string(),
             _ => match test.strip_prefix("act:") {
@@ -795,7 +797,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         items.push(note(app, "键盘监听未启动（详见 log.txt）")?);
     }
     items.push(separator(app)?);
-    items.push(action(app, "quit", "退出 KeyCat")?);
+    items.push(action(app, "quit", "退出 杆杆的猫")?);
     let refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item.as_ref()).collect();
     Menu::with_items(app, &refs)
 }
@@ -953,7 +955,7 @@ fn open_settings(app: &AppHandle) {
         .unwrap_or(860.0)
         .min(860.0);
     let built = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings.html".into()))
-        .title("KeyCat 调节")
+        .title("杆杆的猫 调节")
         .inner_size(420.0, height)
         .resizable(false)
         .maximizable(false)
@@ -1129,7 +1131,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     create_panel(app)?;
     TrayIconBuilder::with_id(TRAY)
         .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-        .tooltip("KeyCat")
+        .tooltip("杆杆的猫")
         .show_menu_on_left_click(true)
         .build(app)?;
     start_pump(app);

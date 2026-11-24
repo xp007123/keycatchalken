@@ -59,7 +59,7 @@ const K = {};
   // `?crop=x,y,w,h` (frame px) magnifies any part of the frame, for close-up checks.
   const crop = params.get('crop') && params.get('crop').split(',').map(Number);
   const CROP = crop ? { x: crop[0], y: crop[1], w: crop[2], h: crop[3] }
-    : params.has('full') ? { x: 0, y: 0, w: FRAME.w, h: FRAME.h } : { x: 95, y: 34, w: 360, h: 368 };
+    : params.has('full') ? { x: 0, y: 0, w: FRAME.w, h: FRAME.h } : { x: 95, y: 0, w: 360, h: 402 };
   const [FOV, ELEV, DIST] = (params.get('cam') || '16,28,15.65').split(',').map(Number);
   const ANCHOR = V(0.28, 0.1, 1.0), AIM = { x: 294, y: 355 };
   const scene = new THREE.Scene();
