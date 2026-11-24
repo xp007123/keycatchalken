@@ -54,7 +54,15 @@ final class SettingsWindow: NSObject, WKScriptMessageHandler, WKNavigationDelega
             app.tune = [:]
             app.pushOptions()
         } else if let test = body["test"] as? String {
-            app.js(test == "annoy" ? "cat.annoyNow()" : "cat.curiousNow(3)")
+            if test == "annoy" {
+                app.js("cat.annoyNow()")
+            } else if test == "curious" {
+                app.js("cat.curiousNow(3)")
+            } else if test.hasPrefix("act:") {
+                // Plays one idle fidget; the name is checked so nothing else reaches the page.
+                let kind = String(test.dropFirst(4))
+                if !kind.isEmpty, kind.allSatisfy({ $0.isASCII && $0.isLetter }) { app.js("cat.act('\(kind)')") }
+            }
         }
     }
 }

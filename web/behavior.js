@@ -16,8 +16,10 @@
     rub: 0, busyUntil: now() + 2, lastPaw: 'R', hit: 'none',
     // How worked up the cat is (fast typing, quick mouse moves): wider pupils, livelier tail.
     excite: 0, strokes: [], tailPhase: 0,
-    // An idle fidget: { kind, t0, dur, side }.
-    act: null, nextAct: now() + 4,
+    // An idle fidget: { kind, t0, dur, side }. `lastActive` is the last key, click or pat:
+    // moving the pointer alone neither cancels a fidget nor keeps new ones from starting.
+    // `yawned` marks the yawn before dozing off.
+    act: null, nextAct: now() + 4, lastActive: now(), yawned: false,
     // Irritation, 0..1, from key mashing, very fast typing, petting for too long or being woken
     // up. Past a threshold the cat is `cross`: it thumps its tail on the desk until it calms.
     annoy: 0, cross: false, crossSince: 0, thumpPhase: 0, thumpLift: 0, lastSlam: 0, petStart: -1,
@@ -26,6 +28,10 @@
     // recent [time, distance] samples for the pointer speed; `curiousUntil` keeps it watching a
     // while after the pointer stops.
     moves: [], mouseSpeed: 0, curiousUntil: -100,
+    // Hunger: `full` is 0..100, last brought up to date at wall-clock `fullAt` (ms). `meal` is the
+    // bowl being eaten from: { kind, left 0..1, t0, refuse, doneAt }.
+    full: 80, fullAt: Date.now(), hungerRestored: false, hungerReported: -100,
+    meal: null, lastNom: 0, lickT0: -100, happyUntil: -100,
   };
   const effects = [];
   // Pose springs. Gaze is quickest, then the head, then the body, like a real cat whose eyes
@@ -43,6 +49,9 @@
     cross: new Spring(0, 1.6, 0.9),
     curious: new Spring(0, 3.5, 0.75),   // quick to light up, a slight overshoot reads as a start
     desk: new Spring(0, 9, 0.35),        // the desk hop when the tail slams down
+    eat: new Spring(0, 2, 0.8),          // head down over the bowl
+    bowl: new Spring(0, 4, 0.45),        // the bowl popping in, with a little overshoot
+    starve: new Spring(0, 0.8, 0.9),     // the slumped, drooping look of a very hungry cat
   };
   // Paw 'L' is on screen left (the cat's right) and also works the mouse.
   const paws = {
@@ -64,13 +73,113 @@
     S.lastPoke = t;
   }
 
-  function wake(t) {
-    if (S.asleep || S.sleep > 0.3) { S.wakeAt = t; poke(TUNING.wakeAnnoy / 100, t); }
+  // Idle fidgets and how long each lasts. The long ones use the paws (`PAW_ACTS`), so they only
+  // start while the paw is off the mouse.
+  // 'beg' and 'meow' come up when the cat is hungry; 'rumble' (holding its tummy as it growls) and
+  // 'flop' (flopping down, chin on the desk, looking up at you) when it is starving.
+  const ACTS = { tilt: 1.8, ear: 0.4, slowBlink: 1.4, look: 2.2, tail: 1, yawn: 2.6, knead: 4.8, shake: 1.3,
+    beg: 3.2, meow: 1.6, rumble: 2.4, flop: 4.5 };
+  const PAW_ACTS = new Set(['knead']);
+  const SMALL_ACTS = ['tilt', 'tilt', 'ear', 'slowBlink', 'look', 'tail'];
+  // Picks a fidget by the weights in the 调节 window; `pawFree` false leaves out the paw ones.
+  function pickAct(pawFree) {
+    const w = { yawn: TUNING.wYawn, knead: pawFree ? TUNING.wKnead : 0,
+      shake: TUNING.wShake, small: TUNING.wSmall };
+    // Hungry, it mostly asks for food; very hungry, its tummy rumbles too. Well fed, it kneads more.
+    if (hungry() && S.full < STARVING) {
+      for (const k in w) w[k] *= 0.15;
+      Object.assign(w, { beg: 3, meow: 3, rumble: 4, flop: 3 });
+    } else if (hungry()) {
+      for (const k in w) w[k] *= 0.5;
+      Object.assign(w, { beg: 5, meow: 2 });
+    } else if (TUNING.hungerOn && S.full > 80) w.knead *= 1.5;
+    let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
+    for (const [kind, weight] of Object.entries(w)) {
+      if (weight <= 0) continue;
+      if ((r -= weight) < 0) return kind === 'small' ? SMALL_ACTS[Math.floor(Math.random() * SMALL_ACTS.length)] : kind;
+    }
+    return null;
+  }
+  // Hunger. `S.full` drops with wall-clock time, also while the app is closed (the host saves
+  // `{ full, at }` and hands it back in `options`), and a little with every key.
+  const HUNGRY = 30, STARVING = 10;
+  // How much each food fills the cat (in %) and how long it takes to eat (s).
+  const FOODS = { fish: { amount: 15, eat: 2.2 }, kibble: { amount: 40, eat: 3.6 }, can: { amount: 60, eat: 3.6, hearts: 3 },
+    milk: { amount: 20, eat: 3 } };
+  const hungry = () => TUNING.hungerOn && S.full < HUNGRY;
+  function digest() {
+    const ms = Date.now();
+    if (TUNING.hungerOn) S.full = clamp(S.full - (ms - S.fullAt) / 3.6e6 * (100 - HUNGRY) / TUNING.hungerHours, 0, 100);
+    S.fullAt = ms;
+  }
+  function reportHunger(t) {
+    S.hungerReported = t;
+    window.webkit?.messageHandlers?.cat?.postMessage({ hunger: { full: Math.round(S.full * 10) / 10, at: S.fullAt } });
+  }
+  // A bowl appears; the cat eats from it whenever nothing else is going on. Too full, it turns its
+  // nose up at it.
+  function feed(kind) {
+    if (!(kind in FOODS)) return false;
+    const t = now();
+    digest();
+    // Food is a nice way to be woken: no grumpiness.
+    if (S.asleep || S.sleep > 0.3) S.wakeAt = t;
     S.asleep = false;
     S.lastInput = t;
-    // Springs need a couple of seconds at full frame rate to settle after any input.
-    S.busyUntil = t + 3;
     S.act = null;
+    S.meal = { kind, left: 1, t0: t, refuse: TUNING.hungerOn && S.full >= 95, doneAt: null };
+    K.foodProp.setKind(kind);
+    K.foodProp.setLeft(1);
+    P.bowl.set(0);
+    S.busyUntil = Math.max(S.busyUntil, t + 2);
+    return true;
+  }
+  // Sticker effects that pop up and float: the fish thought bubble, hearts, "吧唧", "咕~".
+  // `delay` (s) holds it back, for a few hearts one after another.
+  function popFx(tex, from, size, life, vel, aspect = 1, delay = 0) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sprite.renderOrder = 43;
+    sprite.position.copy(from);
+    sprite.visible = delay <= 0;
+    scene.add(sprite);
+    effects.push({ kind: 'pop', sprite, t0: now() + delay, life, size, from: from.clone(), vel, aspect });
+  }
+  function nom() {
+    const at = K.foodProp.target(V()).add(V(0.08 + 0.1 * Math.random(), 0.12, 0.1));
+    popFx(K.labelTexture('吧唧', 'z').tex, at, 0.2, 0.8, V(0.05, 0.25, 0), 2);
+  }
+  function afterMeal(t, meal) {
+    S.lickT0 = t + 0.3;
+    S.happyUntil = t + 2;
+    const n = FOODS[meal.kind].hearts || 1;
+    const head = cat.head.getWorldPosition(V());
+    for (let i = 0; i < n; i++) {
+      popFx(K.fxTexture('heart'), head.clone().add(V(0.35 + 0.15 * i, 0.45 + 0.05 * i, 0.1)), 0.2, 1.4, V(0.06, 0.3, 0), 1, 0.25 * i);
+    }
+    reportHunger(t);
+  }
+
+  function startAct(kind, t) {
+    S.act = { kind, t0: t, dur: ACTS[kind], side: Math.random() < 0.5 ? -1 : 1, puffed: false };
+    // Rest a while (`idleGap` on average, give or take 40%) after the fidget ends.
+    S.nextAct = t + S.act.dur + TUNING.idleGap * (0.6 + 0.8 * Math.random()) * (hungry() && S.full < STARVING ? 0.5 : 1);
+    S.busyUntil = Math.max(S.busyUntil, t + S.act.dur + 0.8);
+  }
+
+  // A key, click or pat stops whatever fidget is going on, since the paws are needed. Moving the
+  // pointer (`fromPointer`) lets it play out; the eyes follow the pointer meanwhile.
+  function wake(t, fromPointer = false) {
+    const wasAsleep = S.asleep || S.sleep > 0.3;
+    if (wasAsleep) { S.wakeAt = t; poke(TUNING.wakeAnnoy / 100, t); }
+    S.asleep = false;
+    S.yawned = false;
+    S.lastInput = t;
+    // Springs need a couple of seconds at full frame rate to settle after any input.
+    S.busyUntil = Math.max(S.busyUntil, t + 3);
+    if (fromPointer) return;
+    S.lastActive = t;
+    // The click on a 试试 button can reach the cat just after the fidget it asked for.
+    if (!(S.act && S.act.forced && t - S.act.t0 < 0.4)) S.act = null;
     S.nextAct = t + 4 + Math.random() * 4;
   }
 
@@ -107,6 +216,11 @@
     paw.key = k;
     paw.t0 = t;
     paw.dur = clamp(paw.pos.distanceTo(keyboard.keyTop(k, tmp)) * 0.09, 0.05, 0.1);
+    // Typing burns a little energy; a very hungry cat's paws are a touch slower.
+    if (TUNING.hungerOn) {
+      S.full = Math.max(0, S.full - TUNING.typeCost / 1000);
+      if (S.full < STARVING) paw.dur *= 1.35;
+    }
     paw.down = true;
     k.down = true;
     S.lastKey = t;
@@ -147,6 +261,18 @@
     for (const s of [-1, 0, 1]) add('dust', 0.13 + 0.04 * Math.random(), 0.5, V(s * 0.5 + 0.1, 0.3 + 0.15 * Math.random(), 0.1), 41);
     P.desk.kick(0.35);
     P.squash.kick(0.25);
+  }
+
+  // Shaking off: a few tufts of fur fly out from the sides of the body and head.
+  function shakePuffs(t) {
+    const head = cat.head.getWorldPosition(V());
+    for (const [s, y, base] of [[-1, 0.15, head], [1, 0.1, head], [-1, -0.55, head], [1, -0.6, head], [1, -0.25, head]]) {
+      const from = base.clone().add(V(s * (0.55 + 0.1 * Math.random()), y, 0.1));
+      const sprite = fxSprite('dust', 41);
+      sprite.position.copy(from);
+      scene.add(sprite);
+      effects.push({ kind: 'dust', sprite, t0: t, life: 0.6, size: 0.13 + 0.05 * Math.random(), from, vel: V(s * (0.5 + 0.3 * Math.random()), 0.15 + 0.2 * Math.random(), 0.1) });
+    }
   }
 
   // The label floats beside the striking arm, on its outer side, like the reference.
@@ -213,7 +339,28 @@
       return;
     }
     let target, hz = 3.2, damping = 0.78;
-    if (name === 'L' && mousing(t)) {
+    const act = S.act, pawAct = act && PAW_ACTS.has(act.kind);
+    if (act && act.kind === 'rumble' && name === 'R') {
+      const u = (t - act.t0) / act.dur, env = smooth(0, 0.2, u) * (1 - smooth(0.8, 1, u));
+      const arm = cat.arms[1];
+      cat.attach(arm.shoulderLocal, arm.shoulder);
+      const rest = tmp2.set(arm.shoulder.x + 0.02, 0.26, 0.68);
+      target = tmp.lerpVectors(rest, cat.attach(V(0.12, 0.42, 0.56), V()), env);
+      hz = 4;
+    } else if (pawAct) {
+      // Fidgets that use the paws win over the mouse: the pointer may keep moving meanwhile.
+      const u = (t - act.t0) / act.dur, env = smooth(0, 0.15, u) * (1 - smooth(0.85, 1, u));
+      const arm = cat.arms[paw.side < 0 ? 0 : 1];
+      cat.attach(arm.shoulderLocal, arm.shoulder);
+      const rest = tmp.set(arm.shoulder.x + paw.side * 0.02, 0.26, 0.68);
+      // Kneading: the paws take turns, each lifting and pulling back a little, then pressing
+      // forward and down onto the edge of the board.
+      const ph = (t - act.t0) * 1.7 * Math.PI * 2 + (paw.side < 0 ? 0 : Math.PI);
+      const lift = Math.max(0, Math.sin(ph));
+      target = rest.add(V(paw.side * -0.03 * env, 0.2 * lift * env, -0.09 * lift * env));
+      hz = 7;
+      damping = 0.85;
+    } else if (name === 'L' && mousing(t)) {
       // Holding the mouse the paw sticks to it, so this spring is stiff.
       target = mouseProp.top(tmp);
       hz = t - S.lastMouse < 0.05 || S.mouseDown ? 9 : 6;
@@ -247,7 +394,7 @@
 
   function update(t, dt) {
     const idle = t - S.lastInput;
-    if (!S.asleep && !S.petting && idle > opts.sleepAfter) S.asleep = true;
+    if (!S.asleep && !S.petting && !S.meal && idle > opts.sleepAfter) S.asleep = true;
     S.sleep += ((S.asleep ? 1 : 0) - S.sleep) * approach(S.asleep ? 1.2 : 6, dt);
     if (S.petting) S.petUntil = t + 0.25;
     const pet = t < S.petUntil;
@@ -287,24 +434,117 @@
     const cross = clamp(P.cross.x, 0, 1);
     if (S.cross || curiousNow) S.busyUntil = Math.max(S.busyUntil, t + 1);
 
-    // Idle fidgets, only when nothing else is going on.
-    const idleFor = t - S.lastInput;
+    const quietFor = t - S.lastActive;
+
+    // Hunger and meals. The cat eats while nothing else is going on: typing or petting pauses it,
+    // and the bowl waits. When the bowl is empty it licks its lips, looks happy and the bowl goes.
+    digest();
+    if (t - S.hungerReported > 15) reportHunger(t);
+    const meal = S.meal;
+    let eating = false, mealLook = 0, refusing = 0;
+    if (meal) {
+      const age = t - meal.t0;
+      if (meal.refuse) {
+        // Sniffs at it, then turns its head away with its eyes shut.
+        mealLook = smooth(0.2, 0.6, age) * (1 - smooth(1, 1.4, age));
+        refusing = smooth(1, 1.4, age) * (1 - smooth(2.8, 3.4, age));
+        if (age > 3 && meal.doneAt === null) meal.doneAt = t;
+      } else if (meal.doneAt === null) {
+        mealLook = 1;
+        eating = age > 0.7 && quietFor > 0.6 && !pet && !S.cross;
+        if (eating) {
+          const food = FOODS[meal.kind], bite = Math.min(meal.left, dt / food.eat);
+          meal.left -= bite;
+          if (TUNING.hungerOn) S.full = Math.min(100, S.full + food.amount * bite);
+          if (t - S.lastNom > 0.8) { S.lastNom = t; nom(); }
+          if (meal.left <= 0.001) { meal.left = 0; meal.doneAt = t; afterMeal(t, meal); }
+        }
+      }
+      const gone = meal.doneAt !== null && t - meal.doneAt > 0.5;
+      P.bowl.step(gone ? 0 : 1, dt);
+      K.foodProp.setShown(clamp(P.bowl.x, 0, 1.3));
+      K.foodProp.setLeft(meal.left);
+      if (gone && P.bowl.x < 0.02) { K.foodProp.setShown(0); S.meal = null; }
+      S.busyUntil = Math.max(S.busyUntil, t + 0.5);
+    }
+    P.eat.step(eating ? 1 : 0, dt);
+    const eat = clamp(P.eat.x, 0, 1);
+    // Lip licks (after a meal, or begging): two quick licks, to one side and then the other.
+    const lickU = (t - S.lickT0) / 1.2;
+    cat.setLick(lickU > 0 && lickU < 1 ? Math.sin(lickU * Math.PI * 2) ** 2 : 0, lickU < 0.5 ? 1 : -1);
+    const happy = t < S.happyUntil ? smooth(0, 0.3, 2 - (S.happyUntil - t)) * smooth(0, 0.4, S.happyUntil - t) : 0;
+    // Hungry: ears droop a little; very hungry, the eyelids too.
+    const hunger = hungry() ? (S.full < STARVING ? 1 : 0.6) : 0;
+
+    // Idle fidgets, when nothing else is going on. Only keys, clicks and pats count as "going on":
+    // a pause in typing is enough, and the pointer may still be moving. Fidgets that need the
+    // paws wait until the paw is off the mouse.
     if (S.act && t > S.act.t0 + S.act.dur) S.act = null;
-    if (!S.act && t > S.nextAct && idleFor > 2.5 && !S.asleep && !pet && !S.cross && !curiousNow) {
-      const kinds = ['tilt', 'tilt', 'ear', 'slowBlink', 'look', 'tail'];
-      const kind = kinds[Math.floor(Math.random() * kinds.length)];
-      S.act = { kind, t0: t, dur: { tilt: 1.8, ear: 0.4, slowBlink: 1.4, look: 2.2, tail: 1 }[kind], side: Math.random() < 0.5 ? -1 : 1 };
-      S.nextAct = t + 4 + Math.random() * 5;
-      S.busyUntil = Math.max(S.busyUntil, t + S.act.dur + 0.8);
+    if (S.act && S.meal && !S.act.forced) S.act = null;
+    if (S.act && (S.cross || curiousNow)) S.act = null;
+    // About to doze off: a yawn first.
+    if (TUNING.idleOn && TUNING.sleepYawn && !S.asleep && !S.yawned && !pet && !S.meal && opts.sleepAfter > 6 && idle > opts.sleepAfter - 3.2
+      && (!S.act || S.act.kind !== 'knead')) {
+      S.yawned = true;
+      startAct('yawn', t);
+    }
+    if (!TUNING.idleOn && S.act && !S.act.forced) S.act = null;
+    if (TUNING.idleOn && !S.act && !S.meal && t > S.nextAct && quietFor > TUNING.idleQuiet && !S.asleep && !pet && !S.cross && !curiousNow) {
+      const kind = pickAct(!mousing(t));
+      if (kind) startAct(kind, t);
+      else S.nextAct = t + 1;
     }
     const act = S.act, actU = act ? (t - act.t0) / act.dur : 0;
     // Smooth in, hold, smooth out over the fidget's duration.
     const actEnv = act ? smooth(0, 0.25, actU) * (1 - smooth(0.7, 1, actU)) : 0;
+    // How much of each of the bigger fidgets is showing right now, 0..1.
+    const actIs = kind => act && act.kind === kind;
+    const knead = actIs('knead') ? smooth(0, 0.12, actU) * (1 - smooth(0.85, 1, actU)) : 0;
+    // Yawn: the mouth opens slowly, holds wide, snaps shut.
+    const yawnOpen = actIs('yawn') ? smooth(0.1, 0.45, actU) * (1 - smooth(0.72, 0.88, actU)) : 0;
+    const yawn = actIs('yawn') ? smooth(0, 0.3, actU) * (1 - smooth(0.8, 1, actU)) : 0;
+    // Shake: a quick side-to-side shiver of the whole cat, fastest in the middle.
+    const shakeEnv = actIs('shake') ? Math.sin(clamp(actU, 0, 1) * Math.PI) : 0;
+    const shiver = actIs('shake') ? Math.sin((t - act.t0) * 40) * shakeEnv : 0;
+    if (actIs('shake') && !act.puffed && actU > 0.35) { act.puffed = true; shakePuffs(t); }
+    const starving = hungry() && S.full < STARVING;
+    const headAt = () => cat.head.getWorldPosition(V());
+    // Begging: big eyes on you, a thought bubble (a fish, or just its bones when starving), a lick.
+    const beg = actIs('beg') ? smooth(0, 0.15, actU) * (1 - smooth(0.85, 1, actU)) : 0;
+    if (actIs('beg') && !act.puffed) {
+      act.puffed = true;
+      S.lickT0 = t + 1.4;
+      popFx(K.fxTexture(starving ? 'boneBubble' : 'fishBubble'), headAt().add(V(0.62, 0.5, 0.1)), 0.46, 2.6, V(0, 0.04, 0));
+    }
+    // Meowing at you: head up, mouth open, "喵~" (a plaintive "喵呜~" when starving).
+    const meow = actIs('meow') ? smooth(0.1, 0.3, actU) * (1 - smooth(0.6, 0.85, actU)) : 0;
+    if (actIs('meow') && !act.puffed && actU > 0.15) {
+      act.puffed = true;
+      popFx(K.labelTexture(starving ? '喵呜~' : '喵~', 'z').tex, headAt().add(V(0.5, 0.3, 0.2)), 0.24, 1.3, V(0.1, 0.12, 0),
+        starving ? 3 : 2);
+    }
+    // Tummy rumble: a paw on the tummy, a look down at it, the belly shudders, "咕噜噜~".
+    const rumble = actIs('rumble') ? smooth(0, 0.2, actU) * (1 - smooth(0.8, 1, actU)) : 0;
+    const rumbleShake = rumble * Math.max(0, Math.sin((t - (act ? act.t0 : 0)) * 5)) * Math.sin(t * 45);
+    if (actIs('rumble') && !act.puffed && actU > 0.25) {
+      act.puffed = true;
+      popFx(K.labelTexture('咕噜噜~', 'z').tex, cat.body.getWorldPosition(V()).add(V(0.62, 0.55, 0.45)), 0.26, 1.6,
+        V(0.1, 0.1, 0), 3);
+    }
+    // Flopping down: the chest sinks, chin down towards the desk, big sad eyes looking up at you.
+    const flop = actIs('flop') ? smooth(0, 0.25, actU) * (1 - smooth(0.8, 1, actU)) : 0;
+    if (actIs('flop') && !act.puffed && actU > 0.3) {
+      act.puffed = true;
+      popFx(K.fxTexture('boneBubble'), headAt().add(V(0.55, 0.35, 0.1)), 0.42, 2.4, V(0, 0.04, 0));
+    }
+    // Starving, all the time: slumped low, head hanging, ears out flat, tail limp, heavy lids.
+    P.starve.step(starving ? 1 : 0, dt);
+    const starve = clamp(P.starve.x, 0, 1);
 
     // Body: the haunches stay planted; the spine bends towards whatever the busy paw reaches for.
     const striking = Object.values(paws).find(p => p.key && (p.down || t - p.t0 < 0.3));
     let shift = 0, hunch = 0, squash = 0;
-    if (mousing(t)) {
+    if (mousing(t) && !knead) {
       // Reaching left for the mouse: chest over to the left, a little forward. The arm does most
       // of the reaching; leaning further would tip the collar and bib off the chest.
       shift = (paws.L.pos.x - cat.home.x + 0.3) * 0.45;
@@ -324,6 +564,19 @@
     squash -= 0.04 * curious;
     // Patting with the tail, the hips shift a touch towards it.
     shift += 0.06 * smooth(0, 1, tailTap.reach);
+    // Kneading sinks a little with each press; a yawn draws the cat up tall.
+    if (knead) {
+      const ph = (t - act.t0) * 1.7 * Math.PI * 2;
+      hunch += 0.04 * knead;
+      squash += knead * (0.05 + 0.02 * Math.abs(Math.cos(ph)));
+      shift += 0.025 * knead * Math.sin(ph);
+    }
+    squash -= 0.05 * yawn;
+    // Eating, the chest leans over to the bowl on the right and dips down to it.
+    shift = mix(shift, 0.16, eat);
+    hunch += 0.14 * eat;
+    squash += 0.04 * eat + 0.1 * starve + 0.18 * flop + 0.025 * rumbleShake;
+    hunch += 0.08 * starve + 0.26 * flop + 0.06 * rumble;
     P.shift.step(shift, dt);
     P.hunch.step(hunch, dt);
     P.squash.step(squash, dt);
@@ -335,7 +588,7 @@
     // A slight sideways lean of the whole body sells the weight shift; most of it is in the
     // spine. No twist about the vertical: the round body would not show it, but the bib, collar
     // and stripes would slide round to the side.
-    cat.body.rotation.set(0.05 * S.sleep, 0, -P.shift.x * 0.06);
+    cat.body.rotation.set(0.05 * S.sleep + 0.04 * flop, 0, -P.shift.x * 0.06 + shiver * 0.07 + 0.012 * rumbleShake);
     cat.body.scale.set(1 + breathe * 0.4, 1 + breathe, 1 + breathe * 0.4);
     cat.bendBody();
     cat.placeHead();
@@ -346,6 +599,11 @@
     const typing = Object.values(paws).find(p => p.key && p.down);
     if (typing && t - S.lastKey < 0.6) focus = screen(keyboard.keyTop(typing.key, tmp2), V());
     else if (tailTap.key && t - tailTap.t0 < 0.6) focus = screen(tailTap.tip, V());
+    else if (S.meal && (mealLook > 0.3 || eat > 0.3)) focus = screen(K.foodProp.target(tmp2), V());
+    // Begging, it looks straight out at you.
+    else if (beg > 0.3 || meow > 0.3) focus = V(headScreen.x, headScreen.y + 30, 0);
+    else if (flop > 0.3) focus = V(headScreen.x, headScreen.y - 160, 0);
+    else if (rumble > 0.3) focus = V(headScreen.x + 30, headScreen.y + 220, 0);
     else if (S.cursor) focus = V(S.cursor.x, S.cursor.y, 0);
     let lx = 0, ly = 0;
     if (focus) {
@@ -367,17 +625,24 @@
     const huff = cross * (lx >= 0 ? -1 : 1) * 0.32;
     // Curious, it turns its whole face to follow the pointer, not just its eyes.
     const follow = mix(0.3, 0.5, curious);
-    P.yaw.step(mix(lx * follow, huff, cross) + petSide * 0.18 * S.rub, dt);
-    P.pitch.step(ly * mix(0.12, 0.22, curious) * (1 - cross) - 0.28 + 0.5 * P.hunch.x + (mousing(t) ? 0.06 : 0) + 0.5 * S.sleep + 0.08 * cross, dt);
+    P.yaw.step(mix(mix(lx * follow, huff, cross), -0.45, refusing) + 0.1 * eat + petSide * 0.18 * S.rub, dt);
+    P.pitch.step(ly * mix(0.12, 0.22, curious) * (1 - cross) - 0.28 + 0.5 * P.hunch.x + (mousing(t) ? 0.06 : 0) + 0.5 * S.sleep + 0.08 * cross
+      - 0.3 * yawn + 0.05 * knead + 0.3 * eat - 0.12 * refusing - 0.08 * happy - 0.06 * beg + 0.06 * hunger
+      + 0.14 * starve - 0.22 * meow + 0.3 * flop + 0.28 * rumble, dt);
     // Curious head tilt: towards a key being watched, or a fidget, or a pointer resting nearby.
     let roll = 0;
     if (striking) roll = clamp(P.shift.x * 1.2, -0.18, 0.18);
     if (act && act.kind === 'tilt') roll += act.side * 0.26 * actEnv;
+    if (yawn) roll += act.side * 0.1 * yawn;
+    if (beg) roll += act.side * 0.14 * beg;
+    if (flop) roll += act.side * 0.18 * flop;
+    roll += 0.06 * starve;
+    roll += 0.1 * happy;
     if (S.cursor && !striking && !mousing(t) && t - S.cursorSeen > 1.2 && Math.abs(lx) < 0.5 && Math.abs(ly) < 0.6) roll += 0.12 * Math.sign(lx || 1);
     // The classic curious head cock, towards the side the pointer is on.
     roll += 0.2 * curious * (lx >= 0 ? -1 : 1);
     P.roll.step(roll - petSide * 0.12 * S.rub + 0.08 * S.sleep, dt);
-    cat.headPivot.rotation.set(P.pitch.x, -cat.body.rotation.y + P.yaw.x + shake, -P.yaw.x * 0.2 + rubWave);
+    cat.headPivot.rotation.set(P.pitch.x, -cat.body.rotation.y + P.yaw.x + shake + shiver * 0.32, -P.yaw.x * 0.2 + rubWave);
     // The head stays level however the body leans, and cocks about its own centre.
     cat.head.rotation.z = P.roll.x - cat.body.rotation.z;
     cat.headPivot.position.x += rubWave * 0.4;
@@ -385,10 +650,12 @@
 
     // Ears perk up when excited, stand up and swivel forward when curious, flatten back when
     // rubbed, go out sideways ("airplane ears") when cross; a fidget flicks one of them.
-    P.ears.step(0.1 * S.excite * (1 - cross) + 0.12 * curious - 0.22 * S.rub - 0.55 * cross, dt);
+    P.ears.step(0.1 * S.excite * (1 - cross) + 0.12 * curious - 0.22 * S.rub - 0.55 * cross
+      - 0.25 * yawn - 0.15 * knead + 0.1 * eat - 0.25 * refusing - 0.15 * hunger - 0.1 * beg - 0.2 * rumble
+      - 0.3 * starve - 0.15 * meow - 0.2 * flop, dt);
     for (const e of cat.ears) {
       const flick = act && act.kind === 'ear' && e.s === act.side ? Math.sin(actU * Math.PI * 3) * 0.3 * (1 - actU) : 0;
-      e.group.rotation.z = -e.s * (e.tilt - P.ears.x) + flick;
+      e.group.rotation.z = -e.s * (e.tilt - P.ears.x) + flick + shiver * 0.3;
       e.group.rotation.x = -0.12 - 0.35 * cross + 0.12 * curious;
     }
 
@@ -398,11 +665,15 @@
     if (curiousNow && t > S.nextBlink - 0.2) S.nextBlink = t + 0.5;
     let blink = t > S.nextBlink ? Math.sin(clamp((t - S.nextBlink) / 0.15, 0, 1) * Math.PI) : 0;
     if (act && act.kind === 'slowBlink') blink = Math.max(blink, 0.85 * Math.sin(clamp(actU, 0, 1) * Math.PI));
-    const closed = (pet && !S.cross) || S.sleep > 0.5;
+    // Kneading, the eyes go half shut with contentment.
+    blink = Math.max(blink, 0.6 * knead, 0.45 * eat, starve * (0.4 + 0.12 * Math.sin(t * 1.7)) * (1 - flop) * (1 - beg));
+    const closed = (pet && !S.cross) || S.sleep > 0.5 || yawn > 0.5 || shakeEnv > 0.3 || refusing > 0.5 || happy > 0.4;
+    // Chewing: the mouth opens and closes a little, quickly.
+    cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow));
     // Excited and curious cats' pupils go wide and round (curious most of all, up to the size set
     // in the 调节 window); cross ones narrow to slits under heavy lids. The pupil never grows past
     // the iris, so it stays a black disc inside a coloured ring.
-    const dilate = Math.min(2.6, mix(1 + 0.25 * S.excite, TUNING.pupilSize / 100, curious) * (1 - 0.5 * cross));
+    const dilate = Math.min(2.6, mix(1 + 0.25 * S.excite + 1.1 * beg + 1.2 * flop + 0.6 * meow, TUNING.pupilSize / 100, curious) * (1 - 0.5 * cross));
     for (const e of cat.eyes) {
       e.iris.visible = e.pupil.visible = e.shine.visible = !closed;
       e.arc.visible = closed;
@@ -426,7 +697,7 @@
       e.pupil.position.y += (-py * 0.02 - e.pupil.position.y) * approach(22, dt);
     }
     // Rubbing flushes the cheeks; the "blush" look keeps a faint flush all the time.
-    cat.blushMat.opacity = Math.max(0.55 * S.rub, cat.look.blush ? 0.4 : 0) * (1 - cross);
+    cat.blushMat.opacity = Math.max(0.55 * S.rub, 0.5 * happy, cat.look.blush ? 0.4 : 0) * (1 - cross);
 
     // The tail sways faster when the cat is worked up and twitches as irritation builds; a fidget
     // gives it a flick.
@@ -448,7 +719,7 @@
     // The tip touches the right half of the space bar; the tail is about 0.075 thick there.
     if (tailTap.key) keyboard.keyTop(tailTap.key, tailTap.tip).add(V(0.36, 0.075 + tailTap.hover, -0.02));
     const reach = smooth(0, 1, tailTap.reach);
-    cat.updateTail(S.tailPhase, (1 - S.sleep) * (1 + 0.6 * S.excite + flickTail + 1.5 * S.annoy) * (1 - cross) * (1 - 0.55 * curious) * (1 - reach), S.sleep,
+    cat.updateTail(S.tailPhase, (1 - S.sleep) * (1 + 0.6 * S.excite + flickTail + 1.5 * S.annoy + 2 * shakeEnv + 0.6 * happy) * (1 - 0.5 * knead) * (1 - 0.4 * hunger) * (1 - 0.7 * starve) * (1 - cross) * (1 - 0.55 * curious) * (1 - reach), Math.max(S.sleep, 0.55 * starve, 0.8 * flop),
       cross * (1 - reach), S.thumpLift, lash, reach, tailTap.tip);
 
     // The desk hops when the tail lands; the anger mark pulses on each thump.
@@ -466,7 +737,15 @@
     for (let i = effects.length - 1; i >= 0; i--) {
       const fx = effects[i], age = t - fx.t0, u = age / fx.life;
       if (u >= 1) { scene.remove(fx.sprite); effects.splice(i, 1); continue; }
+      fx.sprite.visible = age >= 0;
+      if (age < 0) continue;
       fx.sprite.position.copy(fx.from).addScaledVector(fx.vel, age);
+      if (fx.kind === 'pop') {
+        const s = fx.size * (0.4 + 0.6 * smooth(0, 0.12, u) + 0.1 * Math.sin(smooth(0, 0.2, u) * Math.PI));
+        fx.sprite.scale.set(s * fx.aspect, s, 1);
+        fx.sprite.material.opacity = 1 - smooth(0.75, 1, u);
+        continue;
+      }
       const s = fx.size * (fx.kind === 'bang' ? 0.5 + 0.7 * smooth(0, 0.3, u) : 0.6 + 0.9 * u);
       fx.sprite.scale.set(s, s, 1);
       fx.sprite.material.opacity = fx.kind === 'bang' ? 1 - smooth(0.5, 1, u) : 0.9 * (1 - u);
@@ -552,9 +831,24 @@
       S.moves.push([t, Math.hypot(dx, dy)]);
       mouseProp.kick.x = clamp(mouseProp.kick.x + dx * 0.004, -0.16, 0.16);
       mouseProp.kick.z = clamp(mouseProp.kick.z + dy * 0.004, -0.12, 0.12);
-      wake(t);
+      wake(t, true);
     },
     mouseButton(down) { const t = now(); S.mouseDown = down; S.lastMouse = t; wake(t); },
+    // Plays an idle fidget now ('yawn', 'knead', 'shake', 'tilt', …), for checking them.
+    // Puts down a bowl of 'fish', 'kibble', 'can' or 'milk' (the 喂食 menu).
+    feed(kind) { return feed(kind); },
+    // The 调节 window's 让它饿了 / 让它吃饱 buttons.
+    hungryNow() { S.full = 6; S.fullAt = Date.now(); reportHunger(now()); window.cat.act('rumble'); },
+    fullNow() { S.full = 100; S.fullAt = Date.now(); reportHunger(now()); },
+    // Forced, it plays even with fidgets switched off (the 调节 window's 试试 buttons).
+    act(kind) {
+      if (!(kind in ACTS)) return false;
+      const t = now();
+      S.asleep = false; S.sleep = 0; S.cross = false; S.annoy = 0; S.curiousUntil = -100;
+      startAct(kind, t);
+      S.act.forced = true;
+      return true;
+    },
     // Canvas CSS pixels; may lie outside the canvas so the eyes keep following the pointer.
     cursor(x, y) {
       if (!S.cursor || Math.abs(S.cursor.x - x) + Math.abs(S.cursor.y - y) > 3) S.cursorSeen = now();
@@ -573,6 +867,14 @@
       }
     },
     options(o) {
+      // The saved hunger is only taken once, when the page loads: later option pushes carry the
+      // host's copy, which can be a few seconds stale.
+      if (o.hunger && typeof o.hunger.full === 'number' && !S.hungerRestored) {
+        S.hungerRestored = true;
+        S.full = clamp(o.hunger.full, 0, 100);
+        S.fullAt = Number(o.hunger.at) || Date.now();
+      }
+      delete o.hunger;
       Object.assign(opts, o);
       // `tune` holds only the settings that differ from the defaults, so start from those.
       if (o.tune) {
@@ -590,6 +892,9 @@
       S.mouseDown = false; S.lastMouse = -100; S.lastKey = -100; S.petting = false; S.petUntil = 0;
       S.asleep = false; S.sleep = 0; S.lastInput = now(); S.busyUntil = now() + 2;
       S.strokes = []; S.excite = 0; S.act = null; S.nextAct = now() + 4;
+      S.lastActive = now(); S.yawned = false;
+      if (S.meal) { K.foodProp.setShown(0); S.meal = null; }
+      S.lickT0 = -100; S.happyUntil = -100;
       S.annoy = 0; S.cross = false; S.petStart = -1; S.thumpLift = 0;
       S.moves = []; S.mouseSpeed = 0; S.curiousUntil = -100;
       P.cross.set(0); P.desk.set(0); P.curious.set(0);

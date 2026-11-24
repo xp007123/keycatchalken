@@ -27,6 +27,30 @@ const TUNING_SCHEMA = [
     { key: 'curiousHold', label: '好奇持续多久', type: 'range', min: 0.5, max: 6, step: 0.5, def: 2, unit: '秒',
       hint: '鼠标停下后，还要盯这么久才放松。' },
   ] },
+  { group: '待机小动作', items: [
+    { key: 'idleOn', label: '会做待机动作', type: 'toggle', def: true,
+      hint: '不打字时会自己找点事做。按键、点击、摸头会马上打断；只移动鼠标不打断，眼睛会跟着鼠标转。' },
+    { key: 'idleQuiet', label: '停手多久开始', type: 'range', min: 1, max: 15, step: 0.5, def: 2.5, unit: '秒',
+      hint: '最后一次按键或点击之后，至少隔这么久才开始做动作。' },
+    { key: 'idleGap', label: '动作之间歇多久', type: 'range', min: 2, max: 40, step: 1, def: 6, unit: '秒',
+      hint: '做完一个动作后，平均歇这么久再做下一个。' },
+    { key: 'wYawn', label: '打哈欠', type: 'range', min: 0, max: 10, step: 1, def: 2, unit: '',
+      hint: '下面几项是各个动作出现的多少，0 表示不做，数字越大越常出现。' },
+    { key: 'wKnead', label: '踩奶', type: 'range', min: 0, max: 10, step: 1, def: 4, unit: '',
+      hint: '踩奶要用爪子，爪子在鼠标上时不会开始。' },
+    { key: 'wShake', label: '抖毛', type: 'range', min: 0, max: 10, step: 1, def: 3, unit: '' },
+    { key: 'wSmall', label: '小动作', type: 'range', min: 0, max: 10, step: 1, def: 4, unit: '',
+      hint: '歪头、抖耳朵、慢眨眼、看旁边、甩尾巴。' },
+    { key: 'sleepYawn', label: '睡着前打个哈欠', type: 'toggle', def: true },
+  ] },
+  { group: '饥饿', items: [
+    { key: 'hungerOn', label: '会饿', type: 'toggle', def: true,
+      hint: '猫会慢慢饿，右键菜单里可以喂它。饿了会盯着你、舔嘴、想小鱼干，很饿时肚子咕咕叫；不会饿坏，也不影响打字。' },
+    { key: 'hungerHours', label: '从吃饱到饿要多久', type: 'range', min: 0.5, max: 24, step: 0.5, def: 4, unit: '小时',
+      hint: '软件关着的时候也照样算。' },
+    { key: 'typeCost', label: '打字消耗', type: 'range', min: 0, max: 20, step: 1, def: 5, unit: '%/千键',
+      hint: '每打一千个键，额外饿这么多。' },
+  ] },
 ];
 const TUNING = {};
 for (const g of TUNING_SCHEMA) for (const it of g.items) TUNING[it.key] = it.def;

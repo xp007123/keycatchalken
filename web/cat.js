@@ -343,8 +343,86 @@
       return out.set(x, y, faceZ(x, y) + 0.006);
     }, () => 0.0055);
     face.add(noseMesh, mouth.mesh);
+    face.userData.mouth = mouth.mesh;
   }
   head.add(face);
+
+  // Yawning mouth: a big rounded opening under the nose, flat along the top, with a pink tongue
+  // at the bottom and two clear fangs hanging from the top corners. It lives outside `face` so
+  // black cats, which have no nose or "ω", still show it. `setYawn(0..1)` opens it.
+  const yawn = new THREE.Group();
+  {
+    // The mouth's top edge sits just under the nose; the shape hangs down from local y = 0.
+    const TOP = -0.19, W = 0.115, H = 0.21;
+    const mouthShape = new THREE.Shape();
+    mouthShape.moveTo(-W, 0);
+    mouthShape.quadraticCurveTo(0, 0.025, W, 0);
+    mouthShape.bezierCurveTo(W * 1.05, -H * 0.65, W * 0.55, -H, 0, -H);
+    mouthShape.bezierCurveTo(-W * 0.55, -H, -W * 1.05, -H * 0.65, -W, 0);
+    const throat = new THREE.Mesh(new THREE.ShapeGeometry(mouthShape, 24), overlay('#4a1a22'));
+    throat.renderOrder = 13;
+    const tongueShape = new THREE.Shape();
+    tongueShape.absellipse(0, -H * 0.74, W * 0.6, H * 0.2, 0, Math.PI * 2, false, 0);
+    const tongue = new THREE.Mesh(new THREE.ShapeGeometry(tongueShape, 24), overlay('#ef8a98'));
+    tongue.renderOrder = 14;
+    // The groove down the middle of the tongue.
+    const groove = new THREE.Mesh(new THREE.PlaneGeometry(0.008, H * 0.16), overlay('#d76a7b'));
+    groove.position.set(0, -H * 0.7, 0.001);
+    groove.renderOrder = 15;
+    const fang = new THREE.Shape();
+    fang.moveTo(-0.018, 0.004); fang.lineTo(0.018, 0.004);
+    fang.quadraticCurveTo(0.008, -0.03, 0, -0.058);
+    fang.quadraticCurveTo(-0.008, -0.03, -0.018, 0.004);
+    const fangGeo = new THREE.ShapeGeometry(fang, 8);
+    const fangs = [-1, 1].map(s => {
+      const m = new THREE.Mesh(fangGeo, overlay('#fbfaf3'));
+      m.position.set(s * W * 0.6, 0.006, 0.002);
+      m.renderOrder = 15;
+      return m;
+    });
+    yawn.add(throat, tongue, groove, ...fangs);
+    const MID = TOP - H / 2;
+    yawn.position.set(0, TOP, faceZ(0, MID) + 0.01);
+    yawn.quaternion.setFromUnitVectors(V(0, 0, 1), V(0, MID / (R.y * R.y), faceZ(0, MID) / (R.z * R.z)).normalize());
+    yawn.visible = false;
+  }
+  head.add(yawn);
+  // Opens from the top edge down, so the mouth hangs from just under the nose; it widens a little
+  // as it opens.
+  function setYawn(v) {
+    yawn.visible = v > 0.02;
+    yawn.scale.set(0.55 + 0.45 * v, v, 1);
+    face.userData.mouth.visible = v < 0.2;
+  }
+
+  // Licking its lips: a little pink tongue tip pokes out under the "ω" and slides to one side.
+  // `setLick(0..1, side)`: 0 is hidden, 1 is all the way out.
+  const lick = new THREE.Group();
+  {
+    const LY = -0.205;
+    const s = new THREE.Shape();
+    s.moveTo(-0.028, 0);
+    s.lineTo(0.028, 0);
+    s.bezierCurveTo(0.03, -0.035, 0.016, -0.05, 0, -0.05);
+    s.bezierCurveTo(-0.016, -0.05, -0.03, -0.035, -0.028, 0);
+    const tip = new THREE.Mesh(new THREE.ShapeGeometry(s, 12), overlay('#ef8a98'));
+    tip.renderOrder = 14;
+    const edge = new THREE.Mesh(new THREE.ShapeGeometry(s, 12), overlay('#4a1a22'));
+    edge.scale.setScalar(1.18);
+    edge.position.y = 0.004;
+    edge.renderOrder = 13;
+    lick.add(edge, tip);
+    lick.position.set(0, LY, faceZ(0, LY) + 0.009);
+    lick.quaternion.setFromUnitVectors(V(0, 0, 1), V(0, LY / (R.y * R.y), faceZ(0, LY) / (R.z * R.z)).normalize());
+    lick.visible = false;
+  }
+  head.add(lick);
+  function setLick(v, side = 1) {
+    lick.visible = v > 0.03;
+    lick.scale.set(1, v, 1);
+    lick.position.x = side * 0.03 * v;
+    lick.rotation.z = side * 0.35 * v;
+  }
 
   // Tail in world space: the root follows the body, the tip mostly stays put when the cat leans.
   const tailPts = [V(0.42, 0.42, -0.25), V(0.72, 0.28, -0.3), V(0.96, 0.36, -0.32), V(1.05, 0.56, -0.3),
@@ -548,7 +626,7 @@
     tailTip: out => tailCurve.getPoint(1, out),
     petMeshes: [headMesh, ...ears.map(e => e.mesh)],
     dragMeshes: [bodyMesh, tail.body, ...arms.flatMap(a => [a.limb.body, a.paw]), ...hind],
-    updateArm, updateTail, setLook, look,
+    updateArm, updateTail, setLook, look, setYawn, setLick,
   };
   setLook({});
 })();

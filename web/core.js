@@ -203,7 +203,7 @@ const K = {};
     if (labelCache.has(key)) return labelCache.get(key);
     const c = document.createElement('canvas');
     const wide = text.length > 1;
-    c.width = wide ? 256 : 128; c.height = 128;
+    c.width = style === 'cap' ? (wide ? 256 : 128) : Math.max(128, Math.min(512, 128 * Math.ceil(text.length * 0.75))); c.height = 128;
     const g = c.getContext('2d');
     if (style === 'cap') {
       const w = c.width - 16, h = 96, x = 8, y = 8, r = 26;
@@ -220,8 +220,8 @@ const K = {};
     } else {
       g.font = 'bold 84px "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.lineWidth = 12; g.strokeStyle = '#1b1b1b'; g.strokeText(text, 64, 66);
-      g.fillStyle = '#fbfaf3'; g.fillText(text, 64, 66);
+      g.lineWidth = 12; g.strokeStyle = '#1b1b1b'; g.strokeText(text, c.width / 2, 66);
+      g.fillStyle = '#fbfaf3'; g.fillText(text, c.width / 2, 66);
     }
     const tex = new THREE.CanvasTexture(c);
     tex.anisotropy = 4;
@@ -230,7 +230,9 @@ const K = {};
     return entry;
   };
 
-  // Small sticker effects: 'anger' (manga cross-vein mark), 'bang' (impact burst), 'dust' (puff).
+  // Small sticker effects: 'anger' (manga cross-vein mark), 'bang' (impact burst), 'dust' (puff),
+  // 'heart', 'fishBubble' (a thought bubble with a fish in it, for a hungry cat) and 'boneBubble'
+  // (the same bubble with a bare fish skeleton, for a starving one).
   K.fxTexture = kind => {
     const key = 'fx:' + kind;
     if (labelCache.has(key)) return labelCache.get(key).tex;
@@ -258,6 +260,46 @@ const K = {};
       g.closePath();
       g.fillStyle = '#fbfaf3'; g.fill();
       g.strokeStyle = '#1d1d1b'; g.lineWidth = 7; g.stroke();
+    } else if (kind === 'heart') {
+      const heart = () => {
+        g.beginPath();
+        g.moveTo(64, 108);
+        g.bezierCurveTo(14, 74, 10, 30, 40, 24);
+        g.bezierCurveTo(54, 21, 62, 32, 64, 40);
+        g.bezierCurveTo(66, 32, 74, 21, 88, 24);
+        g.bezierCurveTo(118, 30, 114, 74, 64, 108);
+        g.closePath();
+      };
+      heart(); g.fillStyle = '#f06a80'; g.fill();
+      g.strokeStyle = '#1d1d1b'; g.lineWidth = 7; g.stroke();
+      g.beginPath(); g.ellipse(44, 44, 9, 6, -0.6, 0, Math.PI * 2); g.fillStyle = '#ffd3db'; g.fill();
+    } else if (kind === 'boneBubble') {
+      g.fillStyle = '#fbfaf3'; g.strokeStyle = '#1d1d1b'; g.lineWidth = 6;
+      for (const [x, y, r] of [[22, 112, 7], [34, 98, 10]]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke(); }
+      g.beginPath(); g.ellipse(72, 54, 50, 38, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      // Fish skeleton: a round head, a spine with ribs, a forked tail.
+      g.strokeStyle = '#5b5a55'; g.lineWidth = 4;
+      g.beginPath(); g.arc(46, 54, 11, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#5b5a55'; g.beginPath(); g.arc(43, 51, 2.5, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.moveTo(57, 54); g.lineTo(96, 54); g.stroke();
+      for (let i = 0; i < 4; i++) {
+        const x = 63 + i * 8, h = 12 - i * 1.5;
+        g.beginPath(); g.moveTo(x - 3, 54 - h); g.lineTo(x + 2, 54); g.lineTo(x - 3, 54 + h); g.stroke();
+      }
+      g.beginPath(); g.moveTo(96, 54); g.lineTo(106, 43); g.moveTo(96, 54); g.lineTo(106, 65); g.stroke();
+    } else if (kind === 'fishBubble') {
+      // Cloud with two small trailing puffs at the bottom left, pointing back to the cat's head.
+      g.fillStyle = '#fbfaf3'; g.strokeStyle = '#1d1d1b'; g.lineWidth = 6;
+      for (const [x, y, r] of [[22, 112, 7], [34, 98, 10]]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke(); }
+      g.beginPath(); g.ellipse(72, 54, 50, 38, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      // Fish: an oval body, a forked tail, an eye.
+      g.fillStyle = '#7fa7c9';
+      g.beginPath(); g.ellipse(66, 54, 24, 13, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.moveTo(88, 54); g.lineTo(106, 41); g.lineTo(102, 54); g.lineTo(106, 67); g.closePath(); g.fill();
+      g.lineWidth = 4; g.strokeStyle = '#2b3a48';
+      g.beginPath(); g.ellipse(66, 54, 24, 13, 0, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.moveTo(88, 54); g.lineTo(106, 41); g.lineTo(102, 54); g.lineTo(106, 67); g.closePath(); g.stroke();
+      g.fillStyle = '#2b3a48'; g.beginPath(); g.arc(54, 51, 3.5, 0, Math.PI * 2); g.fill();
     } else {
       g.beginPath(); g.arc(64, 64, 52, 0, Math.PI * 2);
       g.fillStyle = '#f4f1e6'; g.fill();

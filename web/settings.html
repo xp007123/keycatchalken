@@ -38,6 +38,15 @@
   <button data-test="curious">让它好奇试试</button>
   <button class="reset" id="reset">恢复默认</button>
 </div>
+<div class="bar">
+  <button data-test="act:yawn">打哈欠</button>
+  <button data-test="act:knead">踩奶</button>
+  <button data-test="act:shake">抖毛</button>
+</div>
+<div class="bar">
+  <button data-test="hungry">让它饿了</button>
+  <button data-test="full">让它吃饱</button>
+</div>
 <script src="tuning.js"></script>
 <script>
 'use strict';
@@ -99,7 +108,7 @@ function show() {
     else { input.value = values[it.key]; input.show(values[it.key]); }
   }
   // A switched-off group greys out its sliders.
-  for (const [toggle, group] of [['annoyOn', TUNING_SCHEMA[0].group], ['curiousOn', TUNING_SCHEMA[1].group]]) {
+  for (const [toggle, group] of [['annoyOn', TUNING_SCHEMA[0].group], ['curiousOn', TUNING_SCHEMA[1].group], ['idleOn', TUNING_SCHEMA[2].group], ['hungerOn', TUNING_SCHEMA[3].group]]) {
     for (const { it, row } of Object.values(inputs)) {
       if (row.dataset.group === group && it.key !== toggle) row.classList.toggle('off', !values[toggle]);
     }

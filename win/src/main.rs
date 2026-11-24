@@ -42,6 +42,9 @@ const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
 const TRAY: &str = "tray";
 const DEV: bool = cfg!(debug_assertions);
+/// Off in this build: it is a customised KeyCat, and the official releases would replace it.
+/// No update is checked for, downloaded or installed, and the menu only shows the version.
+const AUTO_UPDATE: bool = false;
 /// tauri.conf.json `identifier`, which names the app data folder in %APPDATA%.
 const IDENTIFIER: &str = "com.ellobok.keycat";
 
@@ -207,6 +210,8 @@ fn push_options(app: &AppHandle) {
         "privacy": s.privacy,
         "sleepAfter": if s.sleep_after > 0.0 { s.sleep_after } else { 1e9 },
         "tune": s.tune,
+        // How full the cat was when the page last reported it; the page takes it once on load.
+        "hunger": host(app).store.get("hunger").cloned().unwrap_or(Value::Null),
     });
     js(app, &format!("cat.options({options})"));
 }
@@ -567,6 +572,10 @@ fn on_cat_message(app: &AppHandle, message: &Value) {
         update_click_target(app);
     } else if let Some(ticks) = message.get("ticks").and_then(Value::as_f64) {
         write_status(app, ticks);
+    } else if let Some(hunger) = message.get("hunger").filter(|v| v.get("full").and_then(Value::as_f64).is_some()) {
+        // `{ full, at }`, sent every few seconds and after each meal; saved so hunger carries
+        // over while KeyCat is closed.
+        host(app).store.set("hunger", hunger.clone());
     }
 }
 
@@ -585,7 +594,18 @@ fn on_settings_message(app: &AppHandle, body: &Value) {
         host(app).store.set("tune", json!({}));
         push_options(app);
     } else if let Some(test) = body.get("test").and_then(Value::as_str) {
-        js(app, if test == "annoy" { "cat.annoyNow()" } else { "cat.curiousNow(3)" });
+        // "act:<name>" plays one idle fidget; the name is checked so nothing else reaches the page.
+        let call = match test {
+            "annoy" => "cat.annoyNow()".to_string(),
+            "curious" => "cat.curiousNow(3)".to_string(),
+            "hungry" => "cat.hungryNow()".to_string(),
+            "full" => "cat.fullNow()".to_string(),
+            _ => match test.strip_prefix("act:") {
+                Some(kind) if !kind.is_empty() && kind.chars().all(|c| c.is_ascii_alphabetic()) => format!("cat.act('{kind}')"),
+                _ => return,
+            },
+        };
+        js(app, &call);
     }
 }
 
@@ -639,6 +659,9 @@ fn update_item(app: &AppHandle) -> tauri::Result<Item> {
     if DEV {
         return note(app, &format!("开发模式 v{version}"));
     }
+    if !AUTO_UPDATE {
+        return note(app, &format!("v{version}（已关闭自动更新）"));
+    }
     match host(app).update.clone() {
         UpdateState::Ready(new) => action(app, "update:install", &format!("重启并更新到 v{new}")),
         UpdateState::Downloading(_, percent) => note(app, &format!("正在下载更新 {percent}%")),
@@ -649,13 +672,42 @@ fn update_item(app: &AppHandle) -> tauri::Result<Item> {
     }
 }
 
+/// Foods in the 喂食 menu: the id the page knows, and the label with how much it fills.
+const FOODS: [(&str, &str); 4] = [
+    ("fish", "🐟 小鱼干（+15%）"),
+    ("kibble", "🥣 猫粮（+40%）"),
+    ("can", "🥫 罐头（+60%）"),
+    ("milk", "🥛 牛奶（+20%）"),
+];
+
+/// 喂食 submenu. Its title shows how full the cat is, as last reported by the page (at most a few
+/// seconds old), unless hunger is switched off in the 调节 window.
+fn feed_menu(app: &AppHandle, s: &Settings) -> tauri::Result<Item> {
+    let hunger_on = s.tune.get("hungerOn") != Some(&Value::Bool(false));
+    let full = host(app).store.get("hunger").and_then(|h| h.get("full")).and_then(Value::as_f64);
+    let title = match full {
+        Some(full) if hunger_on => {
+            let full = full.clamp(0.0, 100.0).round();
+            let mood = if full < 10.0 { "，饿坏了" } else if full < 30.0 { "，饿了" } else { "" };
+            format!("喂食（饱腹 {full}%{mood}）")
+        }
+        _ => "喂食".to_string(),
+    };
+    let foods = FOODS
+        .iter()
+        .map(|(id, text)| action(app, &format!("feed:{id}"), text))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    submenu(app, &title, foods)
+}
+
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let (s, hook_ready, autostart) = {
         let h = host(app);
         (h.settings(), h.hook_ready, h.autostart)
     };
     let coat = s.coat.as_str();
-    let mut items = vec![check(app, format!("set:style={}", json!(if s.style == "3d" { "2d" } else { "3d" })), "立体效果（3D）", s.style == "3d")?];
+    let mut items = vec![feed_menu(app, &s)?, separator(app)?];
+    items.push(check(app, format!("set:style={}", json!(if s.style == "3d" { "2d" } else { "3d" })), "立体效果（3D）", s.style == "3d")?);
     items.push(submenu(
         app,
         "毛色",
@@ -783,6 +835,8 @@ fn on_menu(app: &AppHandle, id: &str) {
         }
     } else if let Some(value) = id.strip_prefix("scale:").and_then(|raw| raw.parse::<f64>().ok()) {
         apply_scale(app, value, true);
+    } else if let Some(food) = id.strip_prefix("feed:").filter(|food| FOODS.iter().any(|(known, _)| known == food)) {
+        js(app, &format!("cat.feed('{food}')"));
     } else {
         match id {
             "settings" => open_settings(app),
@@ -964,6 +1018,9 @@ fn set_update(app: &AppHandle, state: UpdateState) {
 }
 
 fn check_for_updates(app: &AppHandle) {
+    if !AUTO_UPDATE {
+        return;
+    }
     if DEV {
         return;
     }
@@ -1025,6 +1082,9 @@ fn check_for_updates(app: &AppHandle) {
 
 /// Runs the downloaded installer, which closes this process and starts the new version.
 fn install_update(app: &AppHandle) {
+    if !AUTO_UPDATE {
+        return;
+    }
     let Some((update, bytes)) = host(app).downloaded.take() else { return };
     log(&format!("installing update {}", update.version));
     if let Err(error) = update.install(bytes) {
@@ -1075,7 +1135,9 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     start_pump(app);
     // Built after the hook came up, so a failed hook shows in the menu.
     rebuild_menu(app);
-    start_update_checks(app);
+    if AUTO_UPDATE {
+        start_update_checks(app);
+    }
     sync_autostart(app);
     log(&format!("started v{} elevated={}", app.package_info().version, elevate::is_elevated()));
     Ok(())
