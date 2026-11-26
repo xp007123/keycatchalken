@@ -766,7 +766,7 @@
       e.pupil.position.y += (-py * 0.02 - e.pupil.position.y) * approach(22, dt);
     }
     // Rubbing flushes the cheeks; the "blush" look keeps a faint flush all the time.
-    cat.blushMat.opacity = Math.max(0.55 * S.rub, 0.5 * happy, cat.look.blush ? 0.4 : 0, 0.6 * cross);
+    cat.blushMat.opacity = Math.max(0.55 * S.rub, 0.5 * happy, cat.look.blush ? 0.4 : 0) * (1 - cross);
 
     // The tail sways faster when the cat is worked up and twitches as irritation builds; a fidget
     // gives it a flick.
