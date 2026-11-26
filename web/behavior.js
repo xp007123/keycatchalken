@@ -170,6 +170,7 @@
   // A key, click or pat stops whatever fidget is going on, since the paws are needed. Moving the
   // pointer (`fromPointer`) lets it play out; the eyes follow the pointer meanwhile.
   function wake(t, fromPointer = false) {
+    K.talk.activity();
     const wasAsleep = S.asleep || S.sleep > 0.3;
     if (wasAsleep) { S.wakeAt = t; poke(TUNING.wakeAnnoy / 100, t); K.talk.event('woken'); }
     S.asleep = false;
