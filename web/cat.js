@@ -403,11 +403,16 @@
   // `tilt` 0..1: how far the head is tipped down. The mouth sits low on the face, so it is seen
   // more and more edge-on as the head dips; it is drawn taller to make up for that.
   function setYawn(v, tilt = 0) {
-    yawn.visible = v > 0.02;
-    // A small opening (chewing, a meow) is a small round mouth, not the wide yawn squashed flat
-    // into a line: the width shrinks with it, and the height opens faster than linearly.
-    yawn.scale.set(0.2 + 0.8 * v, Math.pow(v, 0.7) * (1 + 0.9 * tilt), 1);
-    face.userData.mouth.visible = v < 0.2;
+    // Below this the mouth is simply shut and the "ω" shows: an opening this small would only
+    // be a dark sliver.
+    const open = v > 0.07;
+    yawn.visible = open;
+    face.userData.mouth.visible = !open;
+    // A small opening (chewing, a meow) is a small round "o", never the wide yawn squashed flat
+    // into a line: up to about a third open it is as tall as it is wide and just grows; beyond
+    // that it widens into the full yawn shape.
+    const tall = Math.pow(v, 0.6), wide = mix(tall * 0.8, 0.2 + 0.8 * v, smooth(0.3, 0.7, v));
+    yawn.scale.set(wide, tall * (1 + 0.9 * tilt), 1);
   }
 
   // Licking its lips: a little pink tongue tip pokes out under the "ω" and slides to one side.
