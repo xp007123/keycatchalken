@@ -128,6 +128,8 @@
   K.talk = {
     // From the 调节 window's 说句话试试 button, and for checking in dev.
     sayNow(kinds = ['praise', 'charge', 'cheer', 'work']) { show(pick(kinds)); },
+    // Says one given line straight away (milestones, the rain story).
+    say(line) { if (TUNING.talkOn && line) show(line); },
     key() {
       const ms = nowMs();
       if (ms - st.lastKey > 5 * MIN) st.sessionStart = ms;
@@ -190,7 +192,12 @@
       // The greeting always comes first.
       if (st.greeted) {
         once('lunch', h >= 11.5 && h < 13.5, ['lunch']);
-        once('offwork', h >= 17.5 && h < 19, ['offwork']);
+        if (h >= 17.5 && h < 19 && !doneToday('offwork')) {
+          markToday('offwork');
+          // The day's typing tally first, if she typed enough for it to mean something.
+          if (K.extras && K.extras.keysToday() >= 300) st.queue.push({ line: K.extras.summary(), until: ms + 15 * MIN });
+          queue(['offwork']);
+        }
         once('late', h >= 22 || h < 3, ['late']);
         const special = { 1: 'monday', 3: 'wednesday', 5: 'friday' }[day];
         once('weekday', special && h >= 9 && h < 18, [special]);
