@@ -723,6 +723,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             ("德文卷毛猫", json!("devon")),
             ("美短银虎斑", json!("silver")),
             ("狸花猫", json!("lihua")),
+            ("米米（狸花白）", json!("mimi")),
         ])?,
     )?);
     // Only coats whose stripes would show get the choice; black and white stay plain.
