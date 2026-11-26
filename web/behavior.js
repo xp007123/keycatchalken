@@ -78,7 +78,7 @@
   // 'beg' and 'meow' come up when the cat is hungry; 'rumble' (holding its tummy as it growls) and
   // 'flop' (flopping down, chin on the desk, looking up at you) when it is starving.
   const ACTS = { tilt: 1.8, ear: 0.4, slowBlink: 1.4, look: 2.2, tail: 1, yawn: 2.6, knead: 4.8, shake: 1.3,
-    beg: 3.2, meow: 1.6, rumble: 2.4, flop: 4.5, bug: 4.2 };
+    beg: 3.2, meow: 1.6, rumble: 2.4, flop: 4.5, bug: 5 };
   const PAW_ACTS = new Set(['knead']);
   const SMALL_ACTS = ['tilt', 'tilt', 'ear', 'slowBlink', 'look', 'tail'];
   // Picks a fidget by the weights in the 调节 window; `pawFree` false leaves out the paw ones.
@@ -182,7 +182,8 @@
     if (fromPointer) return;
     S.lastActive = t;
     // The click on a 试试 button can reach the cat just after the fidget it asked for.
-    if (!(S.act && S.act.forced && t - S.act.t0 < 0.4)) S.act = null;
+    // A bug has the cat's whole attention: nothing breaks that off.
+    if (!(S.act && (S.act.kind === 'bug' || (S.act.forced && t - S.act.t0 < 0.4)))) S.act = null;
     S.nextAct = t + 4 + Math.random() * 4;
   }
 
@@ -199,6 +200,12 @@
       return;
     }
     wake(t);
+    if (S.act && S.act.kind === 'bug') {
+      // Too busy with the bug to type: the key goes down on its own and still counts.
+      if (!k.down) { K.talk.key(); K.extras.key(); }
+      k.down = true;
+      return;
+    }
     if (k.down || (tailTap.key === k && tailTap.down)) return;
     // Easter egg: space goes to the tail, unless the tail is busy thumping in a huff.
     if (k.code === 'Space' && !S.cross) {
@@ -346,11 +353,22 @@
     let target, hz = 3.2, damping = 0.78;
     const act = S.act, pawAct = act && PAW_ACTS.has(act.kind);
     const actAt = act ? (t - act.t0) / act.dur : 0;
-    if (act && act.kind === 'bug' && name === 'R' && actAt > 0.62 && actAt < 0.86) {
-      // Swatting the bug: the free paw shoots out to where it has come down.
-      target = K.extras.catchPoint(tmp);
-      hz = 10;
-      damping = 0.7;
+    if (act && act.kind === 'bug' && actAt < 0.9) {
+      // Both paws come off the keys. The right one is held up, ready, while the cat watches the
+      // bug, then shoots out to where it comes down; the left one tucks in against the chest.
+      if (name === 'R' && actAt > 0.7 && actAt < 0.86) {
+        target = K.extras.catchPoint(tmp);
+        hz = 11;
+        damping = 0.65;
+      } else {
+        const ready = smooth(0.08, 0.25, actAt);
+        const arm = cat.arms[paw.side < 0 ? 0 : 1];
+        cat.attach(arm.shoulderLocal, arm.shoulder);
+        const rest = tmp2.set(arm.shoulder.x + paw.side * 0.02, 0.26, 0.68);
+        const up = name === 'R' ? V(0.5, 0.92 + 0.03 * Math.sin(t * 9), 0.6) : cat.attach(V(-0.3, 0.55, 0.5), V());
+        target = tmp.lerpVectors(rest, up, ready);
+        hz = 4.5;
+      }
     } else if (act && act.kind === 'rumble' && name === 'R') {
       const u = (t - act.t0) / act.dur, env = smooth(0, 0.2, u) * (1 - smooth(0.8, 1, u));
       const arm = cat.arms[1];
@@ -494,7 +512,7 @@
     // paws wait until the paw is off the mouse.
     if (S.act && t > S.act.t0 + S.act.dur) S.act = null;
     if (S.act && S.meal && !S.act.forced) S.act = null;
-    if (S.act && (S.cross || curiousNow)) S.act = null;
+    if (S.act && (S.cross || curiousNow) && S.act.kind !== 'bug') S.act = null;
     // About to doze off: a yawn first.
     if (TUNING.idleOn && TUNING.sleepYawn && !S.asleep && !S.yawned && !pet && !S.meal && opts.sleepAfter > 6 && idle > opts.sleepAfter - 3.2
       && (!S.act || S.act.kind !== 'knead')) {
@@ -613,6 +631,11 @@
     shift = mix(shift, 0.16, eat);
     hunch += 0.14 * eat;
     squash += 0.04 * eat + 0.1 * starve + 0.18 * flop + 0.025 * rumbleShake + 0.05 * fun.wet;
+    // Getting ready to pounce on a bug: a low crouch and the hunter's wiggle, faster as it comes.
+    const pounce = actIs('bug') ? smooth(0.3, 0.6, actU) * (1 - smooth(0.74, 0.8, actU)) : 0;
+    hunch += 0.12 * pounce;
+    squash += 0.06 * pounce;
+    shift += 0.035 * pounce * Math.sin(t * 16);
     hunch += 0.08 * starve + 0.26 * flop + 0.06 * rumble;
     P.shift.step(shift, dt);
     P.hunch.step(hunch, dt);
