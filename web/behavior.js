@@ -675,6 +675,8 @@
     const closed = (pet && !S.cross) || S.sleep > 0.5 || yawn > 0.5 || shakeEnv > 0.3 || refusing > 0.5 || happy > 0.4;
     // Chewing: the mouth opens and closes a little, quickly.
     cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow, K.talk.mouth()));
+    // Cross, or turning its nose up at food: the smile turns into a pout.
+    cat.setFrown(clamp(Math.max(cross, 0.8 * refusing), 0, 1));
     // Excited and curious cats' pupils go wide and round (curious most of all, up to the size set
     // in the 调节 window); cross ones narrow to slits under heavy lids. The pupil never grows past
     // the iris, so it stays a black disc inside a coloured ring.
@@ -702,7 +704,7 @@
       e.pupil.position.y += (-py * 0.02 - e.pupil.position.y) * approach(22, dt);
     }
     // Rubbing flushes the cheeks; the "blush" look keeps a faint flush all the time.
-    cat.blushMat.opacity = Math.max(0.55 * S.rub, 0.5 * happy, cat.look.blush ? 0.4 : 0) * (1 - cross);
+    cat.blushMat.opacity = Math.max(0.55 * S.rub, 0.5 * happy, cat.look.blush ? 0.4 : 0, 0.6 * cross);
 
     // The tail sways faster when the cat is worked up and twitches as irritation builds; a fidget
     // gives it a flick.
