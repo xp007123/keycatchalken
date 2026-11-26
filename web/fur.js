@@ -31,6 +31,7 @@
     uCap: { value: 0 },                  // heavier, darker markings on the top of the head
     uInnerAmt: { value: 0 },
     uShade: { value: 0 },
+    uWet: { value: 0 },                  // soaked by rain: darker, a touch bluer
   };
 
   const vertex = `
@@ -56,7 +57,7 @@
 
   const fragment = `
     uniform vec3 uFur, uLight, uDark, uPatchA, uPatchB, uPoint, uInner;
-    uniform float uStripes, uMuzzle, uBib, uCalico, uTuxedo, uPoints, uCurl, uBicolor, uVee, uWarm, uSleeve, uBelt, uBeltStyle, uFringe, uCap, uInnerAmt, uShade;
+    uniform float uStripes, uMuzzle, uBib, uCalico, uTuxedo, uPoints, uCurl, uBicolor, uVee, uWarm, uSleeve, uBelt, uBeltStyle, uFringe, uCap, uInnerAmt, uShade, uWet;
     varying vec3 vRest;
     varying vec3 vNormal;
     varying float vAlong;
@@ -221,6 +222,7 @@
         edge = 0.0;
       #endif
       col *= 1.0 + uShade * (0.18 * lit - 0.4 * edge * edge - 0.05);
+      col *= mix(vec3(1.0), vec3(0.85, 0.89, 0.95), uWet);
       gl_FragColor = vec4(col, 1.0);
     }`;
 
@@ -230,6 +232,8 @@
     if (side < 0) defines.LEFT = 1;
     return new THREE.ShaderMaterial({ uniforms: U, vertexShader: vertex, fragmentShader: fragment, defines });
   };
+
+  K.setWet = v => { U.uWet.value = v; };
 
   // Writes a coat: colours plus how strongly each marking shows (0 hides it).
   K.setFur = f => {

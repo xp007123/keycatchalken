@@ -90,6 +90,8 @@ struct Host {
     last_cursor: (i32, i32),
     size_fixes: u32,
     key_events: u64,
+    /// Today's key count as last reported by the page (0 until it reports).
+    keys_today: u64,
     held: HashSet<u32>,
     autostart: Mode,
     update: UpdateState,
@@ -577,6 +579,9 @@ fn on_cat_message(app: &AppHandle, message: &Value) {
         // `{ full, at }`, sent every few seconds and after each meal; saved so hunger carries
         // over while KeyCat is closed.
         host(app).store.set("hunger", hunger.clone());
+    } else if let Some(keys) = message.get("stats").and_then(|s| s.get("keys")).and_then(Value::as_u64) {
+        // How many keys were pressed today: a count only, shown in the menu.
+        host(app).keys_today = keys;
     }
 }
 
@@ -604,6 +609,8 @@ fn on_settings_message(app: &AppHandle, body: &Value) {
             "full" => "cat.fullNow()".to_string(),
             _ => match test.strip_prefix("act:") {
                 Some(kind) if !kind.is_empty() && kind.chars().all(|c| c.is_ascii_alphabetic()) => format!("cat.act('{kind}')"),
+                // Any other plain name is one of the page's own try-it switches (fireworks, rain…).
+                None if !test.is_empty() && test.chars().all(|c| c.is_ascii_alphabetic()) => format!("cat.test('{test}')"),
                 _ => return,
             },
         };
@@ -702,13 +709,31 @@ fn feed_menu(app: &AppHandle, s: &Settings) -> tauri::Result<Item> {
     submenu(app, &title, foods)
 }
 
+/// 12345 → "12,345".
+fn grouped(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let (s, hook_ready, autostart) = {
         let h = host(app);
         (h.settings(), h.hook_ready, h.autostart)
     };
     let coat = s.coat.as_str();
-    let mut items = vec![feed_menu(app, &s)?, separator(app)?];
+    let mut items = vec![feed_menu(app, &s)?];
+    let keys_today = host(app).keys_today;
+    if keys_today > 0 && s.tune.get("milestoneOn") != Some(&Value::Bool(false)) {
+        items.push(note(app, &format!("今天敲了 {} 下", grouped(keys_today)))?);
+    }
+    items.push(separator(app)?);
     items.push(check(app, format!("set:style={}", json!(if s.style == "3d" { "2d" } else { "3d" })), "立体效果（3D）", s.style == "3d")?);
     items.push(submenu(
         app,
@@ -1124,6 +1149,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         last_cursor: (-9999, -9999),
         size_fixes: 0,
         key_events: 0,
+        keys_today: 0,
         held: HashSet::new(),
         autostart: if DEV { Mode::Off } else { autostart::current() },
         update: UpdateState::Idle,
