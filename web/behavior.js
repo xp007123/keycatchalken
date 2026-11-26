@@ -670,6 +670,8 @@
     const closed = (pet && !S.cross) || S.sleep > 0.5 || yawn > 0.5 || shakeEnv > 0.3 || refusing > 0.5 || happy > 0.4;
     // Chewing: the mouth opens and closes a little, quickly.
     cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow));
+    // Cross, or turning its nose up at food: the corners of the mouth go down.
+    cat.setFrown(clamp(Math.max(cross, 0.8 * refusing), 0, 1));
     // Excited and curious cats' pupils go wide and round (curious most of all, up to the size set
     // in the 调节 window); cross ones narrow to slits under heavy lids. The pupil never grows past
     // the iris, so it stays a black disc inside a coloured ring.
