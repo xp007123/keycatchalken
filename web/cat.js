@@ -559,8 +559,15 @@
     lihua: { fur: '#a98a62', ink: '#6e5640', lid: '#3d2f22', rim: '#fff8ec', arm: '#6e5640', paw: '#efe5d3', toe: '#c9b493', whisker: '#fff8ec', eye: 'green',
       light: '#eadfca', muzzle: 1, bib: 0.7, nose: '#b8735f', mouth: '#5e4836', inner: '#d9a894', innerAmt: 1, shade: 0.55,
       tabby: '#3d2f22', striped: true },
+    // 米米: a brown tabby-and-white (简州猫), drawn from photos of the real cat. Grey-brown mackerel
+    // tabby on the head, back and tail; white face V, chest, lower belly and forelegs from the elbow
+    // down (\`sleeve\`); the flank tabby arches across the tummy (\`belt\`); a soft ginger wherever
+    // tabby meets white (\`fringe\`, toned down by \`warm\`); pink nose, hazel eyes.
+    mimi: { fur: '#8d7b64', ink: '#5a4a3a', lid: '#3a2e24', rim: '#fffbf2', arm: '#6b5a48', paw: '#fcfaf5', toe: '#e2c9c4', whisker: '#fffbf2', eye: 'hazel',
+      light: '#fcfaf5', muzzle: 1, bicolor: 1, nose: '#eea3a8', mouth: '#a08a80', inner: '#e0aaa0', innerAmt: 1, shade: 0.55,
+      tabby: '#2f2720', striped: true, patchA: '#c98a4e', sleeve: 0.34, belt: 1, fringe: 1, warm: 0.6 },
   };
-  const EYES = { gold: '#dcb64a', green: '#93c255', blue: '#6eb2e6', amber: '#e59a32', copper: '#d9792f' };
+  const EYES = { gold: '#dcb64a', green: '#93c255', blue: '#6eb2e6', amber: '#e59a32', copper: '#d9792f', hazel: '#b9b252' };
   // Catchlight dots per style: [x (outer side +), y, radius].
   const SHINES = {
     none: [],
@@ -627,6 +634,8 @@
     petMeshes: [headMesh, ...ears.map(e => e.mesh)],
     dragMeshes: [bodyMesh, tail.body, ...arms.flatMap(a => [a.limb.body, a.paw]), ...hind],
     updateArm, updateTail, setLook, look, setYawn, setLick,
+    // The coat table, so a dev page can try out variants of a coat.
+    coats: COATS,
   };
   setLook({});
 })();
