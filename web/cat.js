@@ -338,10 +338,21 @@
     noseMesh.quaternion.setFromUnitVectors(V(0, 0, 1), V(0, NY / (R.y * R.y), faceZ(0, NY) / (R.z * R.z)).normalize());
     noseMesh.renderOrder = 12;
     const mouth = new K.TaperTube(24, 4, mouthMat, 12);
-    mouth.update((t, out) => {
-      const x = mix(-0.07, 0.07, t), y = NY - 0.035 - 0.022 * Math.sin(Math.abs(x) / 0.07 * Math.PI);
-      return out.set(x, y, faceZ(x, y) + 0.006);
-    }, () => 0.0055);
+    // The mouth is a smiling "ω" at rest. \`sulk\` 0..1 presses it into a small wobbly "﹏", so a
+    // cross cat doesn't smile, but pouts rather than scowls: cute, not fierce.
+    let sulkNow = -1;
+    face.userData.setFrown = sulk => {
+      if (Math.abs(sulk - sulkNow) < 0.01) return;
+      sulkNow = sulk;
+      const half = mix(0.07, 0.05, sulk);
+      mouth.update((t, out) => {
+        const x = mix(-half, half, t), s = x / half;
+        const smile = -0.035 - 0.022 * Math.sin(Math.abs(s) * Math.PI), pout = -0.046 + 0.009 * Math.sin(s * Math.PI * 1.5);
+        const y = NY + mix(smile, pout, sulk);
+        return out.set(x, y, faceZ(x, y) + 0.006);
+      }, () => 0.0055);
+    };
+    face.userData.setFrown(0);
     face.add(noseMesh, mouth.mesh);
     face.userData.mouth = mouth.mesh;
   }
@@ -633,7 +644,7 @@
     tailTip: out => tailCurve.getPoint(1, out),
     petMeshes: [headMesh, ...ears.map(e => e.mesh)],
     dragMeshes: [bodyMesh, tail.body, ...arms.flatMap(a => [a.limb.body, a.paw]), ...hind],
-    updateArm, updateTail, setLook, look, setYawn, setLick,
+    updateArm, updateTail, setLook, look, setYawn, setLick, setFrown: v => face.userData.setFrown(v),
     // The coat table, so a dev page can try out variants of a coat.
     coats: COATS,
   };
