@@ -1,6 +1,5 @@
 // Little surprises: typing milestones (fireworks, a crown at ten thousand keys, a daily tally),
-// a bug for the cat to swat, and the odd shower of rain that it sits out under an umbrella or gets
-// soaked by and shakes off. This file owns the props and particles and decides when things happen;
+// a bug for the cat to swat, and the odd shower of rain that soaks it until it shakes itself dry. This file owns the props and particles and decides when things happen;
 // behavior.js asks it each frame how the cat should react (`K.extras.update`).
 'use strict';
 (() => {
@@ -38,30 +37,6 @@
     for (const [x, y, r, c] of [[128, 30, 13, '#e2483d'], [20, 60, 11, '#5fa8e8'], [236, 60, 11, '#5fa8e8'], [128, 167, 9, '#e2483d'], [78, 167, 7, '#fffbe8'], [178, 167, 7, '#fffbe8']]) {
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = c; g.fill(); g.lineWidth = 6; g.stroke();
     }
-  });
-  const umbrellaTex = tex(512, 512, g => {
-    // Handle first, so the canopy sits over it.
-    g.strokeStyle = INK; g.lineWidth = 20;
-    g.beginPath(); g.moveTo(256, 240); g.lineTo(256, 430); g.arc(286, 430, 30, Math.PI, 0, true); g.stroke();
-    g.strokeStyle = '#c9925a'; g.lineWidth = 9;
-    g.beginPath(); g.moveTo(256, 240); g.lineTo(256, 430); g.arc(286, 430, 30, Math.PI, 0, true); g.stroke();
-    // Canopy: a dome with a scalloped lower edge.
-    const dome = () => {
-      g.beginPath();
-      g.moveTo(34, 250);
-      g.bezierCurveTo(34, 120, 150, 58, 256, 58);
-      g.bezierCurveTo(362, 58, 478, 120, 478, 250);
-      for (let i = 3; i >= 0; i--) g.quadraticCurveTo(34 + (i + 0.5) * 111, 208, 34 + i * 111, 250);
-      g.closePath();
-    };
-    dome(); g.fillStyle = '#f2828d'; g.fill();
-    // Lighter panels.
-    g.save(); dome(); g.clip();
-    g.fillStyle = '#fbb3ba';
-    for (const x of [145, 367]) { g.beginPath(); g.moveTo(256, 58); g.quadraticCurveTo(x - 40, 150, x - 55, 262); g.lineTo(x + 55, 262); g.quadraticCurveTo(x + 40, 150, 256, 58); g.fill(); }
-    g.restore();
-    dome(); g.lineWidth = 11; g.strokeStyle = INK; g.stroke();
-    g.beginPath(); g.arc(256, 52, 13, 0, Math.PI * 2); g.fillStyle = '#f7c948'; g.fill(); g.lineWidth = 8; g.stroke();
   });
   const bugTex = tex(96, 96, g => {
     g.lineWidth = 5; g.strokeStyle = INK;
@@ -147,16 +122,15 @@
   }
 
   const crown = sprite(crownTex, 45);
-  const umbrella = sprite(umbrellaTex, 30, true);
   const bug = sprite(bugTex, 47);
 
   // Rain: a pool of streaks falling in front of the scene.
   const drops = Array.from({ length: 44 }, () => ({ s: sprite(streakTex, 44), on: false, x: 0, y: 0, z: 0, v: 0 }));
-  // The shower being played, if any: { kind: 'umbrella' | 'wet', t0, said: {} }.
+  // The shower being played, if any: { t0, said: {} }.
   let rain = null, nextRain = 0;
-  const pose = { lookUp: 0, wet: 0, umbrella: 0, raining: 0 };
-  function startRain(kind) {
-    rain = { kind, t0: clock, said: {} };
+  const pose = { lookUp: 0, wet: 0, raining: 0 };
+  function startRain() {
+    rain = { t0: clock, said: {} };
   }
   // Says each line of the little story once, when its moment comes.
   function cue(name, at, age, run) {
@@ -202,18 +176,18 @@
           V(Math.cos(a) * sp, 0.5 + Math.sin(a) * sp * 0.7, 0.1), { life: 0.8, size: 0.075, gravity: -2.4, delay: Math.random() * 0.25 });
       }
     },
-    rainNow(kind) { startRain(kind === 'wet' ? 'wet' : 'umbrella'); },
+    rainNow() { startRain(); },
     raining: () => !!rain,
     reset() {
       rain = null; nextRain = 0;
-      Object.assign(pose, { lookUp: 0, wet: 0, umbrella: 0, raining: 0 });
+      Object.assign(pose, { lookUp: 0, wet: 0, raining: 0 });
       for (const d of drops) { d.on = false; d.s.visible = false; }
       for (const q of parts) scene.remove(q.s);
       parts.length = 0;
       bug.visible = false;
     },
     // Every frame. `calm`: nothing else going on (awake, not eating, not cross), so a shower may
-    // start. Returns how the cat should look: looking up, how wet, how far the umbrella is open.
+    // start. Returns how the cat should look: looking up at the first drops, and how wet it is.
     update(t, dt, calm) {
       clock = t;
       const ms = Date.now();
@@ -242,45 +216,28 @@
       if (!rain && TUNING.rainEvery > 0) {
         if (!nextRain) nextRain = ms + TUNING.rainEvery * MIN * (0.6 + 0.8 * Math.random());
         if (ms > nextRain) {
-          if (calm) { nextRain = 0; startRain(Math.random() < 0.5 ? 'umbrella' : 'wet'); } else nextRain = ms + MIN;
+          if (calm) { nextRain = 0; startRain(); } else nextRain = ms + MIN;
         }
       }
-      let intensity = 0, lookUp = 0, wet = pose.wet, open = 0;
+      let intensity = 0, lookUp = 0, wet = pose.wet;
       if (rain) {
         const age = t - rain.t0;
         intensity = smooth(0, 1.4, age) * (1 - smooth(8.2, 10, age));
         lookUp = smooth(0.2, 0.7, age) * (1 - smooth(1.4, 2.0, age));
-        if (rain.kind === 'umbrella') {
-          open = smooth(1.1, 1.5, age) * (1 - smooth(10.4, 10.9, age));
-          cue('up', 1.7, age, () => K.talk.say('下雨啦！还好本猫带了伞'));
-          cue('down', 10.9, age, () => K.talk.say('雨停啦，收伞～'));
-          if (age > 12) rain = null;
-        } else {
-          // Soaked: the fur darkens until the rain stops, then a good shake dries it.
-          wet = age < 9.4 ? Math.max(wet, smooth(1.2, 4.2, age)) : wet * Math.exp(-dt * 2.2);
-          cue('soaked', 2.4, age, () => K.talk.say('呜…没带伞，淋湿了啦'));
-          cue('shake', 9.4, age, () => { window.cat.act('shake'); K.extras.splash(head.clone().add(V(0, 0.45, 0.2))); });
-          cue('dry', 11, age, () => K.talk.say('甩干！又是一只蓬松的猫'));
-          // Drips from the chin while it sits there soaked.
-          if (age > 3 && age < 9.3 && Math.random() < dt * 2.2) {
-            particle(dropTex, head.clone().add(V(-0.35 + Math.random() * 0.7, 0.12, 0.42)), V(0, -0.1, 0), { life: 0.7, size: 0.06, gravity: -2.2 });
-          }
-          if (age > 12.5) { rain = null; wet = 0; }
+        // Soaked: the fur darkens until the rain stops, then a good shake dries it.
+        wet = age < 9.4 ? Math.max(wet, smooth(1.2, 4.2, age)) : wet * Math.exp(-dt * 2.2);
+        cue('soaked', 2.4, age, () => K.talk.say('呜…没带伞，淋湿了啦'));
+        cue('shake', 9.4, age, () => { window.cat.act('shake'); K.extras.splash(head.clone().add(V(0, 0.45, 0.2))); });
+        cue('dry', 11, age, () => K.talk.say('甩干！又是一只蓬松的猫'));
+        // Drips from the chin while it sits there soaked.
+        if (age > 3 && age < 9.3 && Math.random() < dt * 2.2) {
+          particle(dropTex, head.clone().add(V(-0.35 + Math.random() * 0.7, 0.12, 0.42)), V(0, -0.1, 0), { life: 0.7, size: 0.06, gravity: -2.2 });
         }
+        if (age > 12.5) { rain = null; wet = 0; }
       } else wet = wet < 0.01 ? 0 : wet * Math.exp(-dt * 3);
-      Object.assign(pose, { lookUp, wet, umbrella: open, raining: intensity });
+      Object.assign(pose, { lookUp, wet, raining: intensity });
 
-      // The umbrella stands behind the cat, its canopy over the head; the head hides the handle.
-      umbrella.visible = open > 0.02;
-      if (umbrella.visible) {
-        const size = 1.95 * (0.35 + 0.65 * open + 0.08 * Math.sin(smooth(0, 1, open) * Math.PI));
-        umbrella.position.set(head.x + 0.04, head.y + 1.0 - (1 - open) * 0.35, head.z - 0.3);
-        umbrella.scale.set(size, size, 1);
-        umbrella.material.rotation = -0.06;
-      }
-      const canopyY = umbrella.position.y + 0.3, canopyR = 0.8;
-
-      // Rain: streaks fall on a slant; under an open umbrella they stop at the canopy.
+      // Rain: streaks fall on a slant.
       const want = Math.round(drops.length * intensity);
       drops.forEach((d, i) => {
         if (!d.on) {
@@ -290,8 +247,7 @@
         }
         d.y -= d.v * dt;
         d.x -= 0.13 * d.v * dt;
-        const floor = open > 0.6 && Math.abs(d.x - umbrella.position.x) < canopyR ? canopyY : 0.04;
-        if (d.y < floor) { d.on = false; d.s.visible = false; return; }
+        if (d.y < 0.04) { d.on = false; d.s.visible = false; return; }
         d.s.visible = true;
         d.s.position.set(d.x, d.y, d.z);
         d.s.scale.set(0.045, 0.135, 1);

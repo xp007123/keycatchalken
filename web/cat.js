@@ -400,11 +400,13 @@
   head.add(yawn);
   // Opens from the top edge down, so the mouth hangs from just under the nose; it widens a little
   // as it opens.
-  function setYawn(v) {
+  // `tilt` 0..1: how far the head is tipped down. The mouth sits low on the face, so it is seen
+  // more and more edge-on as the head dips; it is drawn taller to make up for that.
+  function setYawn(v, tilt = 0) {
     yawn.visible = v > 0.02;
     // A small opening (chewing, a meow) is a small round mouth, not the wide yawn squashed flat
     // into a line: the width shrinks with it, and the height opens faster than linearly.
-    yawn.scale.set(0.2 + 0.8 * v, Math.pow(v, 0.7), 1);
+    yawn.scale.set(0.2 + 0.8 * v, Math.pow(v, 0.7) * (1 + 0.9 * tilt), 1);
     face.userData.mouth.visible = v < 0.2;
   }
 
