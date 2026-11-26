@@ -402,7 +402,9 @@
   // as it opens.
   function setYawn(v) {
     yawn.visible = v > 0.02;
-    yawn.scale.set(0.55 + 0.45 * v, v, 1);
+    // A small opening (chewing, a meow) is a small round mouth, not the wide yawn squashed flat
+    // into a line: the width shrinks with it, and the height opens faster than linearly.
+    yawn.scale.set(0.2 + 0.8 * v, Math.pow(v, 0.7), 1);
     face.userData.mouth.visible = v < 0.2;
   }
 

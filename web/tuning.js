@@ -64,8 +64,8 @@ const TUNING_SCHEMA = [
   { group: '小惊喜', items: [
     { key: 'milestoneOn', label: '打字里程碑', type: 'toggle', def: true,
       hint: '猫会数今天敲了多少下（只记数量，不记内容）。到 1000、5000、一万下时放烟花庆祝，满一万下戴一天小皇冠，下班时报个数。' },
-    { key: 'wBug', label: '飞虫', type: 'range', min: 0, max: 10, step: 1, def: 2, unit: '',
-      hint: '待机时偶尔飞来一只小虫，猫盯着看，然后一爪拍下去。0 表示不来，数字越大越常来。' },
+    { key: 'wBug', label: '飞虫', type: 'range', min: 0, max: 10, step: 1, def: 3, unit: '',
+      hint: '待机时偶尔飞来一只小虫。猫会放下一切（包括打字）盯着它，蓄力，然后一爪拍下去。0 表示不来，数字越大越常来。' },
     { key: 'rainEvery', label: '多久下一场雨', type: 'range', min: 0, max: 180, step: 10, def: 60, unit: '分钟',
       hint: '0 表示不下。下雨时猫有时撑伞，有时淋湿了再抖干。' },
   ] },
