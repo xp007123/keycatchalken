@@ -91,7 +91,7 @@
   }
 
   // Typing tally. Only the count is kept, per day, never which keys.
-  const KEY_STORE = 'quinn.keys';
+  const KEY_STORE = 'gangan.keys';
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   let tally = { date: today(), n: 0 }, dirty = false, lastSave = 0, crownAt = -100;
   try {
@@ -101,7 +101,7 @@
   const MILESTONES = [
     { n: 1000, line: '叮！今天第 1000 下，热身完毕喵', bursts: 2 },
     { n: 3000, line: '3000 下啦，键盘开始冒烟了', bursts: 2 },
-    { n: 5000, line: '5000 下！今天的 Quinn 火力全开', bursts: 3 },
+    { n: 5000, line: '5000 下！今天的杆杆火力全开', bursts: 3 },
     { n: 10000, line: '一万下！本猫为你加冕喵', bursts: 6, crown: true },
     { n: 15000, line: '一万五！你是打字界的传说', bursts: 3 },
     { n: 20000, line: '两万下…手指还好吗？歇歇吧', bursts: 4 },
