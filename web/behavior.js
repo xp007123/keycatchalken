@@ -690,7 +690,7 @@
     const follow = mix(0.3, 0.5, curious);
     P.yaw.step(mix(mix(lx * follow, huff, cross), -0.45, refusing) + 0.1 * eat + petSide * 0.18 * S.rub, dt);
     P.pitch.step(ly * mix(0.12, 0.22, curious) * (1 - cross) - 0.28 + 0.5 * P.hunch.x + (mousing(t) ? 0.06 : 0) + 0.5 * S.sleep + 0.08 * cross
-      - 0.3 * yawn + 0.05 * knead + 0.3 * eat - 0.12 * refusing - 0.08 * happy - 0.06 * beg + 0.06 * hunger
+      - 0.3 * yawn + 0.05 * knead + 0.1 * eat - 0.12 * refusing - 0.08 * happy - 0.06 * beg + 0.06 * hunger
       + 0.14 * starve - 0.22 * meow + 0.3 * flop + 0.28 * rumble, dt);
     // Curious head tilt: towards a key being watched, or a fidget, or a pointer resting nearby.
     let roll = 0;
@@ -732,7 +732,9 @@
     blink = Math.max(blink, 0.6 * knead, 0.45 * eat, starve * (0.4 + 0.12 * Math.sin(t * 1.7)) * (1 - flop) * (1 - beg), 0.4 * fun.wet);
     const closed = (pet && !S.cross) || S.sleep > 0.5 || yawn > 0.5 || shakeEnv > 0.3 || refusing > 0.5 || happy > 0.4;
     // Chewing: the mouth opens and closes a little, quickly.
-    cat.setYawn(Math.max(yawnOpen, eat * (0.12 + 0.14 * Math.abs(Math.sin(t * 9))), 0.5 * meow, K.talk.mouth()));
+    // Chewing: a small mouth opening and shutting.
+    cat.setYawn(Math.max(yawnOpen, eat * (0.13 + 0.15 * Math.abs(Math.sin(t * 9))), 0.5 * meow, K.talk.mouth()),
+      clamp((P.pitch.x + 0.28) * 2.2, 0, 1));
     // Cross, or turning its nose up at food: the smile turns into a pout.
     cat.setFrown(clamp(Math.max(cross, 0.8 * refusing, 0.9 * fun.wet), 0, 1));
     // Excited and curious cats' pupils go wide and round (curious most of all, up to the size set
@@ -910,15 +912,14 @@
     fullNow() { S.full = 100; S.fullAt = Date.now(); reportHunger(now()); },
     // The 调节 window's 说句话试试 button.
     talkNow() { K.talk.sayNow(); S.busyUntil = now() + 6; },
-    // The 调节 window's other 试试 buttons: fireworks, a shower with or without the umbrella, the
-    // day's typing tally.
+    // The 调节 window's other 试试 buttons: fireworks, a shower of rain, the day's typing tally.
     test(name) {
       const t = now();
       S.busyUntil = t + 14;
       if (name === 'fireworks') K.extras.fireworks(4);
-      else if (name === 'rainA' || name === 'rainB') {
+      else if (name === 'rain') {
         S.asleep = false; S.sleep = 0; S.lastInput = t;
-        K.extras.rainNow(name === 'rainB' ? 'wet' : 'umbrella');
+        K.extras.rainNow();
       } else if (name === 'summary') K.talk.say(K.extras.summary());
       else return false;
       return true;

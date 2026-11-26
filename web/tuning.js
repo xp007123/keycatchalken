@@ -67,7 +67,7 @@ const TUNING_SCHEMA = [
     { key: 'wBug', label: '飞虫', type: 'range', min: 0, max: 10, step: 1, def: 3, unit: '',
       hint: '待机时偶尔飞来一只小虫。猫会放下一切（包括打字）盯着它，蓄力，然后一爪拍下去。0 表示不来，数字越大越常来。' },
     { key: 'rainEvery', label: '多久下一场雨', type: 'range', min: 0, max: 180, step: 10, def: 60, unit: '分钟',
-      hint: '0 表示不下。下雨时猫有时撑伞，有时淋湿了再抖干。' },
+      hint: '0 表示不下。下雨时猫会被淋湿，雨停后抖干。' },
   ] },
 ];
 const TUNING = {};
