@@ -43,11 +43,11 @@ const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
 const TRAY: &str = "tray";
 const DEV: bool = cfg!(debug_assertions);
-/// Off in this build: it is 杆杆's own KeyCat, and the official releases would replace it.
+/// Off in this build: it is Quinn's own KeyCat, and the official releases would replace it.
 /// No update is checked for, downloaded or installed, and the menu only shows the version.
 const AUTO_UPDATE: bool = false;
 /// tauri.conf.json `identifier`, which names the app data folder in %APPDATA%.
-const IDENTIFIER: &str = "com.chalken.gangancat";
+const IDENTIFIER: &str = "com.chalken.quinncat";
 
 // The web scene talks to its host through `window.webkit.messageHandlers.<name>.postMessage`,
 // the WKWebView bridge the mac build uses. Recreate that shape on top of Tauri IPC so web/ stays
@@ -289,7 +289,7 @@ fn create_panel(app: &AppHandle) -> tauri::Result<()> {
     let scale = host(app).settings().scale;
     let size = window_size(scale);
     let panel = WebviewWindowBuilder::new(app, PANEL, WebviewUrl::App("index.html".into()))
-        .title("杆杆的猫")
+        .title("Quinn的猫")
         .inner_size(size.width, size.height)
         .visible(false)
         .decorations(false)
@@ -797,7 +797,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         items.push(note(app, "键盘监听未启动（详见 log.txt）")?);
     }
     items.push(separator(app)?);
-    items.push(action(app, "quit", "退出 杆杆的猫")?);
+    items.push(action(app, "quit", "退出 Quinn的猫")?);
     let refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item.as_ref()).collect();
     Menu::with_items(app, &refs)
 }
@@ -955,7 +955,7 @@ fn open_settings(app: &AppHandle) {
         .unwrap_or(860.0)
         .min(860.0);
     let built = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings.html".into()))
-        .title("杆杆的猫 调节")
+        .title("Quinn的猫 调节")
         .inner_size(420.0, height)
         .resizable(false)
         .maximizable(false)
@@ -1131,7 +1131,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     create_panel(app)?;
     TrayIconBuilder::with_id(TRAY)
         .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-        .tooltip("杆杆的猫")
+        .tooltip("Quinn的猫")
         .show_menu_on_left_click(true)
         .build(app)?;
     start_pump(app);

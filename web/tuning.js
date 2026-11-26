@@ -43,13 +43,15 @@ const TUNING_SCHEMA = [
       hint: '歪头、抖耳朵、慢眨眼、看旁边、甩尾巴。' },
     { key: 'sleepYawn', label: '睡着前打个哈欠', type: 'toggle', def: true },
   ] },
-  { group: '气泡（陪杆杆）', items: [
+  { group: '气泡（陪 Quinn）', items: [
     { key: 'talkOn', label: '会说话', type: 'toggle', def: true,
-      hint: '猫头顶冒气泡：打招呼、提醒吃饭和休息、给杆杆加油。只在停手时冒出来，不打扰打字。' },
-    { key: 'talkEvery', label: '随机鼓励多久一条', type: 'range', min: 10, max: 120, step: 5, def: 30, unit: '分钟',
-      hint: '大概的间隔，会有些随机。吃饭、下班这类到点提醒不受影响。' },
-    { key: 'restEvery', label: '连续工作多久提醒休息', type: 'range', min: 0, max: 120, step: 10, def: 50, unit: '分钟',
-      hint: '0 表示不提醒。中间停手超过 5 分钟就重新计时。' },
+      hint: '猫头顶冒气泡：打招呼、聊小动物、提醒喝水和起来走走。打字时不冒，停手或只动鼠标时才说话。' },
+    { key: 'talkEvery', label: '随机聊天多久一句', type: 'range', min: 5, max: 120, step: 5, def: 10, unit: '分钟',
+      hint: '大概的间隔，会有些随机。吃饭、下班这类到点的话不受影响。' },
+    { key: 'sitEvery', label: '坐多久提醒起来走走', type: 'range', min: 0, max: 120, step: 10, def: 50, unit: '分钟',
+      hint: '0 表示不提醒。离开电脑超过 5 分钟就重新计时。' },
+    { key: 'waterEvery', label: '多久提醒喝水', type: 'range', min: 0, max: 120, step: 10, def: 40, unit: '分钟',
+      hint: '0 表示不提醒。两种提醒至少隔 5 分钟，不会一起冒出来。' },
   ] },
   { group: '饥饿', items: [
     { key: 'hungerOn', label: '会饿', type: 'toggle', def: true,

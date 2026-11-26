@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "杆杆的猫",
-  "mainBinaryName": "GanganCat",
+  "productName": "Quinn的猫",
+  "mainBinaryName": "QuinnCat",
   "version": "./package.json",
-  "identifier": "com.chalken.gangancat",
+  "identifier": "com.chalken.quinncat",
   "build": {
     "frontendDist": "../web"
   },
