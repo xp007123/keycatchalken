@@ -413,6 +413,9 @@
     // that it widens into the full yawn shape.
     const tall = Math.pow(v, 0.6), wide = mix(tall * 0.8, 0.2 + 0.8 * v, smooth(0.3, 0.7, v));
     yawn.scale.set(wide, tall * (1 + 0.9 * tilt), 1);
+    // A small mouth sits a little lower, clear of the nose, where the "ω" is; a wide yawn opens
+    // from right under the nose.
+    yawn.position.y = mix(-0.218, -0.19, smooth(0.35, 0.8, v));
   }
 
   // Licking its lips: a little pink tongue tip pokes out under the "ω" and slides to one side.
