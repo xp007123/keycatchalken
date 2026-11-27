@@ -200,6 +200,7 @@
   const pose = { lookUp: 0, wet: 0, raining: 0 };
   function startRain() {
     rain = { t0: clock, said: {} };
+    K.stage.started('rain');
   }
   // Says each line of the little story once, when its moment comes.
   function cue(name, at, age, run) {
@@ -374,9 +375,10 @@
 
       // Showers come round every so often while things are quiet.
       if (!rain && TUNING.rainEvery > 0) {
-        if (!nextRain) nextRain = ms + TUNING.rainEvery * MIN * (0.6 + 0.8 * Math.random());
+        if (!nextRain) nextRain = ms + TUNING.rainEvery / K.stage.rate() * MIN * (0.6 + 0.8 * Math.random());
         if (ms > nextRain) {
-          if (calm) { nextRain = 0; startRain(); } else nextRain = ms + MIN;
+          // The director may say not now (another scene, too soon, enough rain for today).
+          if (calm && K.stage.canStart('rain')) { nextRain = 0; startRain(); } else nextRain = ms + MIN;
         }
       }
       let intensity = 0, lookUp = 0, wet = pose.wet;

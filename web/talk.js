@@ -171,7 +171,7 @@
         // Coming back after a long while already gets its own hello.
         if (ms - st.backAt > 2000 && Math.random() < 0.6) show(pick(['woken']));
       } else if (name === 'music') {
-        if (Math.random() < 0.5) show(pick(['music']));
+        show(pick(['music']));
       } else if (name === 'hungry') {
         queue(['energy'], 30);
       }
@@ -230,7 +230,7 @@
       }
       // Now and then, a little cheering up, matched to the time of day.
       if (ms > st.nextRandom) {
-        st.nextRandom = ms + TUNING.talkEvery * MIN * (0.7 + 0.6 * Math.random());
+        st.nextRandom = ms + TUNING.talkEvery / K.stage.rate() * MIN * (0.7 + 0.6 * Math.random());
         const kinds = ['praise', 'praise', 'charge', 'cheer'];
         if (office) kinds.push('work', 'work');
         if (h >= 14 && h < 17) kinds.push('afternoon');
@@ -241,7 +241,7 @@
 
       // Speak in a pause in typing, not in its sleep, one bubble at a time.
       while (st.queue.length && st.queue[0].until < ms) st.queue.shift();
-      if (!st.showing && st.queue.length && ms - st.lastKey > 3000 && !asleep) show(st.queue.shift().line);
+      if (!st.showing && st.queue.length && ms - st.lastKey > 3000 && !asleep && !K.stage.busy()) show(st.queue.shift().line);
 
       // Keep the bubble just above the head, its tail pointing down at it, inside the window.
       if (st.showing && head) {
