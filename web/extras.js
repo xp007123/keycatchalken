@@ -124,6 +124,73 @@
   const crown = sprite(crownTex, 45);
   const bug = sprite(bugTex, 47);
 
+  // A ball of yarn that rolls in along the top of the keyboard for the cat to bat about. It is a
+  // real sphere wrapped in strands, so as it rolls the strands turn and its loose end drags along
+  // behind it: that reads as round and rolling even in the flat 2D style.
+  const YARN_COLORS = ['#e0574a', '#f0a63a', '#6fa8dc', '#8fbf6a', '#c98ad8'];
+  const yarnTex = tex(256, 128, g => {
+    // White with darker strands, multiplied by the yarn colour: wraps running every which way.
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 128);
+    g.strokeStyle = '#a8a8a8'; g.lineWidth = 5;
+    for (let i = 0; i < 9; i++) {
+      g.beginPath();
+      const ph = i * 0.9, amp = 22 + 14 * Math.sin(i * 2.1), off = 14 + i * 12;
+      for (let x = 0; x <= 256; x += 8) g.lineTo(x, off + amp * Math.sin(x / 256 * Math.PI * 2 * (1 + (i % 3)) + ph));
+      g.stroke();
+    }
+    g.strokeStyle = '#c4c4c4'; g.lineWidth = 3;
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      for (let y = 0; y <= 128; y += 6) g.lineTo(20 + i * 42 + 18 * Math.sin(y / 128 * Math.PI * 3 + i), y);
+      g.stroke();
+    }
+  });
+  const YR = 0.12;
+  const yarnMat = K.propMat(YARN_COLORS[0], yarnTex);
+  const yarnBall = new THREE.Group();
+  const yarnCore = new THREE.Mesh(new THREE.SphereGeometry(YR, 36, 24), yarnMat);
+  const yarnShell = (color, grow, order) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(YR + grow, 28, 18), K.back(color));
+    m.renderOrder = order;
+    return m;
+  };
+  yarnCore.renderOrder = 8;
+  yarnBall.add(yarnShell('#f6f3e8', 0.022, 6), yarnShell('#2a2a2a', 0.009, 7), yarnCore);
+  yarnBall.visible = false;
+  scene.add(yarnBall);
+  // The loose end: a thin strand trailing along the keys where the ball has just been.
+  const before = new Set(scene.children);
+  const yarnTail = K.limb(scene, { segments: 22, radial: 6, fill: yarnMat, outline: K.back('#2a2a2a'), edge: 0.006, order: 7 });
+  // Everything the limb added (strand, outline, end caps), to show and hide together.
+  const tailParts = scene.children.filter(o => !before.has(o));
+  for (const m of tailParts) m.visible = false;
+  const trail = [];
+  // The game: where the ball is, which paw hits it when. x runs along the keyboard (screen left
+  // to right); the cat's paws rest at about x = -0.36 (left) and 0.36 (right).
+  const YARN = {
+    dur: 8.4,
+    enter: { from: 1.6, to: 0.27, t: 1.3 },
+    hits: [
+      { t: 1.9, paw: 'R', to: -0.24 }, { t: 2.9, paw: 'L', to: 0.25 }, { t: 3.85, paw: 'R', to: -0.2 },
+      { t: 4.8, paw: 'L', to: 0.22 }, { t: 5.9, paw: 'R', to: 1.9, away: true },
+    ],
+  };
+  let yarnY = 0.3, yarnZ = 0.8;
+  // Ball x at \`age\` seconds into the game.
+  function yarnX(age) {
+    const e = YARN.enter;
+    if (age < e.t) return mix(e.from, e.to, 1 - (1 - age / e.t) ** 2);
+    let x = e.to;
+    for (const h of YARN.hits) {
+      if (age < h.t) return x;
+      const span = h.away ? 1.1 : 0.55, u = Math.min(1, (age - h.t) / span);
+      const nx = mix(x, h.to, h.away ? u * u * 0.4 + u * 0.6 : 1 - (1 - u) ** 2.4);
+      if (u < 1) return nx;
+      x = h.to;
+    }
+    return x;
+  }
+
   // Rain: a pool of streaks falling in front of the scene.
   const drops = Array.from({ length: 44 }, () => ({ s: sprite(streakTex, 44), on: false, x: 0, y: 0, z: 0, v: 0 }));
   // The shower being played, if any: { t0, said: {} }.
@@ -138,6 +205,17 @@
   }
 
   const head = V(0, 0, 0), tmp = V(0, 0, 0);
+  const noteTex = tex(64, 64, g => {
+    // A quaver: white fill (tinted per note) with an ink outline.
+    const draw = () => {
+      g.beginPath(); g.ellipse(22, 46, 11, 8, -0.4, 0, Math.PI * 2);
+      g.moveTo(31, 44); g.lineTo(31, 10); g.quadraticCurveTo(44, 16, 48, 28);
+    };
+    g.lineWidth = 11; g.strokeStyle = '#2a2a2a'; draw(); g.stroke();
+    g.lineWidth = 5; g.strokeStyle = '#ffffff'; draw(); g.stroke();
+    g.beginPath(); g.ellipse(22, 46, 9, 6, -0.4, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill();
+  });
+  const NOTE_COLORS = ['#ff8fa3', '#ffd166', '#8fd3ff', '#b8f2a6', '#d6b4ff'];
   K.extras = {
     key,
     keysToday: () => (tally.date === today() ? tally.n : 0),
@@ -161,6 +239,63 @@
       return false;
     },
     catchPoint: out => out.set(0.5, 0.95, 0.8),
+    // The yarn game. \`yarnStart\` picks a colour and finds the height of the keys; \`yarnBall\`
+    // places the ball for \`age\` seconds in and returns it (or null once it has rolled away).
+    yarnDur: YARN.dur,
+    yarnStart() {
+      const c = YARN_COLORS[Math.floor(Math.random() * YARN_COLORS.length)];
+      yarnMat.uniforms.uColor.value.set(c);
+      const k = K.keyboard.resolve('KeyG');
+      if (k) { const top = K.keyboard.keyTop(k, V()); yarnY = top.y + YR + 0.005; yarnZ = top.z - 0.08; }
+      trail.length = 0;
+    },
+    yarnBall(age, out) {
+      const x = yarnX(age);
+      const on = age >= 0 && age < YARN.dur && x < 1.75;
+      yarnBall.visible = on;
+      for (const m of tailParts) m.visible = on;
+      if (!on) { trail.length = 0; return null; }
+      // A little hop as each swat lands.
+      let hop = 0;
+      for (const h of YARN.hits) { const d = age - h.t; if (d > 0 && d < 0.3) hop = Math.sin(d / 0.3 * Math.PI) * 0.05; }
+      yarnBall.position.set(x, yarnY + hop, yarnZ);
+      // Rolling without slipping along x, plus a slow wobble about the other axes.
+      yarnCore.rotation.set(0.3 * Math.sin(age * 1.3), 0.4 * age, -(x - YARN.enter.from) / YR);
+      // The loose end: the last stretch of the path the ball took, lying on the keys.
+      const last = trail[trail.length - 1];
+      if (!last || Math.abs(last.x - x) > 0.012) trail.push(V(x, yarnY - YR + 0.012, yarnZ + 0.03));
+      while (trail.length > 16) trail.shift();
+      if (trail.length >= 2) {
+        const a = trail[trail.length - 1], b = trail[0], dir = Math.sign(a.x - b.x) || 1;
+        yarnTail.update((t, o) => {
+          // From under the ball, back along the path, with a lazy wave.
+          const len = Math.min(0.42, Math.abs(a.x - b.x) + 0.12);
+          return o.set(a.x - dir * t * len, a.y + 0.004 * Math.sin(t * 9), a.z + 0.05 * Math.sin(t * 5 + age * 2) * t);
+        }, () => 0.011);
+      } else {
+        yarnTail.update((t, o) => o.set(x + 0.05 + t * 0.2, yarnY - YR + 0.012, yarnZ + 0.03), () => 0.011);
+      }
+      return out.copy(yarnBall.position);
+    },
+    // Where a paw should be at \`age\` (null: no swat to make just now). The paw comes up beside
+    // the ball, on its own side, and pats it towards the other paw.
+    yarnPaw(name, age, out) {
+      for (const h of YARN.hits) {
+        if (h.paw !== name) continue;
+        const d = age - h.t;
+        if (d < -0.45 || d > 0.22) continue;
+        const side = name === 'R' ? 1 : -1, bx = yarnX(h.t);
+        if (d < -0.07) return { target: out.set(bx + side * 0.13, yarnY + 0.15, yarnZ - 0.02), hz: 7 };
+        return { target: out.set(bx + side * 0.03, yarnY + 0.01, yarnZ), hz: 14 };
+      }
+      return null;
+    },
+    // Hearts once the ball has rolled away, for a good game.
+    yarnHearts(age, t) { return age > YARN.hits[YARN.hits.length - 1].t + 0.9; },
+    // Music notes drifting up from the headphones.
+    note(at, side) {
+      particle(noteTex, at, V(side * (0.18 + Math.random() * 0.12), 0.32 + Math.random() * 0.12, 0), { life: 1.6, size: 0.2, color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)] });
+    },
     showBug(pos, t) {
       bug.visible = !!pos;
       if (!pos) return;
@@ -185,6 +320,9 @@
       for (const q of parts) scene.remove(q.s);
       parts.length = 0;
       bug.visible = false;
+      yarnBall.visible = false;
+      for (const m of tailParts) m.visible = false;
+      trail.length = 0;
     },
     // Every frame. `calm`: nothing else going on (awake, not eating, not cross), so a shower may
     // start. Returns how the cat should look: looking up at the first drops, and how wet it is.

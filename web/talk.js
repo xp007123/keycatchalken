@@ -50,6 +50,15 @@
     fed: ['吃饱啦！谢谢杆杆喵～', '有杆杆真好，能量满格！', '你也吃点好吃的奖励自己喵', '吃饱了，杆杆也去吃点好的'],
     pet: ['嘿嘿，杆杆的手好暖喵', '再摸摸～烦恼都摸走啦', '被杆杆摸头最开心了喵', '杆杆摸头，猫猫满电'],
     woken: ['喵？杆杆回来啦！', '我才没睡着…是在闭目养神喵', '杆杆来啦？我立刻清醒了喵'],
+    // Listening to Korean songs. Song titles and a few Korean words only, never lyrics.
+    music: ['戴上耳机，今天的 BGM 是韩语歌～', '《Dynamite》一响，杆杆电量 +100', '听《Butter》，烦恼都化掉啦',
+      '《Hype Boy》一放，本猫原地跳舞', '《Ditto》循环好多遍，还是好好听', '《Super Shy》？本猫一点都不 shy 喵',
+      '《Next Level》！杆杆今天也升级了', '《LOVE DIVE》，本猫一头扎进猫粮里', '听《Fancy》，今天的杆杆也很 fancy',
+      '《Fantastic Baby》！跟本猫一起蹦', '听 IU 的《Palette》，心情都变彩色了', '《DDU-DU DDU-DU》，把材料都突突掉！',
+      '《Spring Day》…想和杆杆一起去看春天', '화이팅！杆杆 fighting 喵～', '대박！这首歌也太好听了吧',
+      '사랑해 杆杆～本猫学会韩语啦', '跟着副歌哼两句…喵～喵～', '应援棒准备好了，就差去看演唱会',
+      '下次打歌舞台，本猫给杆杆应援！', '本猫也想出道，组合名叫 MEOW', '杆杆最爱哪个团？偷偷告诉本猫',
+      '听首韩语歌，下午的材料都不怕了'],
   };
 
   // What was said today, so no line repeats within a day and the once-a-day ones stay once a day.
@@ -161,6 +170,8 @@
       } else if (name === 'woken') {
         // Coming back after a long while already gets its own hello.
         if (ms - st.backAt > 2000 && Math.random() < 0.6) show(pick(['woken']));
+      } else if (name === 'music') {
+        if (Math.random() < 0.5) show(pick(['music']));
       } else if (name === 'hungry') {
         queue(['energy'], 30);
       }

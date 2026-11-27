@@ -98,6 +98,41 @@ const K = {};
     depthShift(material, 'toward-eye-' + amount, `mv.xyz *= 1.0 - ${amount.toFixed(3)} / max(-mv.z, 0.01);`);
 
   K.flat = color => new THREE.MeshBasicMaterial({ color });
+
+  // Props the cat plays with or wears (headphones, a ball of yarn). In the flat 2D style they are
+  // one colour, like the mouse and keyboard; in 3D they get the same soft top-left shading as the
+  // fur. \`map\`, if given, is a greyscale pattern multiplied in (the strands on a ball of yarn).
+  const propShade = { value: 0 };
+  K.setPropShade = v => { propShade.value = v; };
+  K.propMat = (color, map = null) => new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(color) }, uMap: { value: map }, uShade: propShade },
+    defines: map ? { USE_PATTERN: 1 } : {},
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec2 vUv;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform sampler2D uMap;
+      uniform float uShade;
+      varying vec3 vNormal;
+      varying vec2 vUv;
+      void main() {
+        vec3 col = uColor;
+        #ifdef USE_PATTERN
+          col *= texture2D(uMap, vUv).r;
+        #endif
+        vec3 n = normalize(vNormal);
+        float lit = dot(n, normalize(vec3(-0.35, 0.75, 0.55)));
+        float edge = 1.0 - clamp(n.z, 0.0, 1.0);
+        col *= 1.0 + uShade * (0.22 * lit - 0.35 * edge * edge - 0.05);
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  });
   K.back = color => new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
 
   // A tube whose radius varies along its length, rebuilt in place every frame.
