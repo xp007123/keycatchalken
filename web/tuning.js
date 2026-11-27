@@ -52,6 +52,8 @@ const TUNING_SCHEMA = [
       hint: '猫头顶冒气泡：打招呼、聊小动物、提醒喝水和起来走走。打字时不冒，停手或只动鼠标时才说话。' },
     { key: 'talkEvery', label: '随机聊天多久一句', type: 'range', min: 5, max: 120, step: 5, def: 10, unit: '分钟',
       hint: '大概的间隔，会有些随机。吃饭、下班这类到点的话不受影响。' },
+    { key: 'bubbleMix', label: '气泡样式随机', type: 'toggle', def: true,
+      hint: '每次冒泡随机换一种样式：经典、云朵、便签、樱花、薄荷、天蓝。关掉就一直用经典的白底黑框。' },
     { key: 'sitEvery', label: '坐多久提醒起来走走', type: 'range', min: 0, max: 120, step: 10, def: 50, unit: '分钟',
       hint: '0 表示不提醒。离开电脑超过 5 分钟就重新计时。' },
     { key: 'waterEvery', label: '多久提醒喝水', type: 'range', min: 0, max: 120, step: 10, def: 40, unit: '分钟',

@@ -75,6 +75,16 @@
   const CAP_H = 0.058;
   const COLORS = { base: new THREE.Color('#f8f7ef'), mod: new THREE.Color('#e0ddd2'), orange: new THREE.Color('#e9b064') };
   const HIT = new THREE.Color('#b9d84f');
+  // Colourways for 外观 → 键盘: case, plate, keycap tops (letters, modifiers, the two accent keys)
+  // and the colour a key lights up when pressed. Cap sides are the tops a shade darker.
+  const THEMES = {
+    classic: { case: '#252523', plate: '#2b2b28', base: '#f8f7ef', mod: '#e0ddd2', accent: '#e9b064', hit: '#b9d84f' },
+    matcha:  { case: '#3d5a3a', plate: '#466640', base: '#f4f2e3', mod: '#bcd5a2', accent: '#7caf5a', hit: '#ffd166' },
+    sakura:  { case: '#e89fb3', plate: '#de8ea4', base: '#fffafb', mod: '#f8d3de', accent: '#ee7d9c', hit: '#8fd3ff' },
+    ocean:   { case: '#2e4a6d', plate: '#35557d', base: '#f3f8fc', mod: '#bdd7ed', accent: '#58a0d8', hit: '#ffd166' },
+    latte:   { case: '#6a4934', plate: '#77543d', base: '#f7eddd', mod: '#dcc29e', accent: '#c8864a', hit: '#b9d84f' },
+    night:   { case: '#18181f', plate: '#202029', base: '#3b3b4a', mod: '#2d2d3a', accent: '#a88bf0', hit: '#7ef0d0' },
+  };
   const keys = new Map();
   ROWS.forEach((row, r) => {
     let u = 0;
@@ -98,7 +108,21 @@
   });
 
   const world = new THREE.Vector3();
+  const SHADE = 0.9;
+  function setTheme(name) {
+    const th = THEMES[name] || THEMES.classic;
+    caseMesh.material.color.set(th.case);
+    plate.material.color.set(th.plate);
+    COLORS.base.set(th.base); COLORS.mod.set(th.mod); COLORS.orange.set(th.accent);
+    sideMat.color.set(th.base).multiplyScalar(SHADE);
+    modSide.color.set(th.mod).multiplyScalar(SHADE);
+    orangeSide.color.set(th.accent).multiplyScalar(SHADE);
+    HIT.set(th.hit);
+    for (const key of keys.values()) key.top.color.copy(key.base).lerp(HIT, key.glow);
+  }
   K.keyboard = {
+    setTheme,
+    themes: Object.keys(THEMES),
     group: board,
     releaseAll() { for (const key of keys.values()) key.down = false; },
     hitMeshes: [caseMesh, plate],

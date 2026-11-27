@@ -660,7 +660,7 @@
   // style: '2d' is flat colour like a sticker; '3d' adds soft volume shading.
   // headphones: 'none', or a colour from PHONES to wear them all the time.
   const look = { style: '2d', coat: 'black', pattern: 'auto', eye: 'auto', shine: 'classic', blush: false, whiskers: true, collar: 'none',
-    headphones: 'none' };
+    headphones: 'none', keyboard: 'classic' };
   function setLook(o) {
     Object.assign(look, o);
     const c = COATS[look.coat] || COATS.black;
@@ -675,6 +675,7 @@
       e.tilt = 0.2 + 0.5 * ((c.ears || 1) - 1);
     }
     K.mouseProp.setStyle(look.style);
+    K.keyboard.setTheme(look.keyboard);
     K.setPropShade(solid ? 0.6 : 0);
     chinLine.visible = !solid;
     chinMat.uniforms.uColor.value.set(c.ink || c.arm);

@@ -99,17 +99,36 @@
   const el = document.createElement('div');
   el.className = 'talk';
   const style = document.createElement('style');
+  // Looks: each sets the fill, line, text colour, corner radius, border and drop shadow; a
+  // bubble picks one at random (never the same twice running) unless 气泡样式随机 is off.
   style.textContent = `
-    .talk { position: fixed; left: 0; top: 0; max-width: calc(250px * var(--s, 1)); padding: calc(6px * var(--s, 1)) calc(11px * var(--s, 1));
-      background: #fffdf7; color: #2a2722; border: calc(2px * var(--s, 1)) solid #2a2a2a; border-radius: calc(14px * var(--s, 1));
+    .talk { --bg: #fffdf7; --line: #2a2a2a; --fg: #2a2722; --r: 14; --bw: 2; --bst: solid; --sh: 2; --rot: 0deg;
+      position: fixed; left: 0; top: 0; max-width: calc(250px * var(--s, 1)); padding: calc(6px * var(--s, 1)) calc(11px * var(--s, 1));
+      background: var(--bg); color: var(--fg); border: calc(var(--bw) * 1px * var(--s, 1)) var(--bst) var(--line);
+      border-radius: calc(var(--r) * 1px * var(--s, 1));
       font: 600 calc(14px * var(--s, 1))/1.35 "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: 0.02em;
-      box-shadow: 0 calc(2px * var(--s, 1)) 0 rgba(40,40,40,0.35); pointer-events: none; user-select: none;
+      box-shadow: 0 calc(var(--sh) * 1px * var(--s, 1)) 0 rgba(40,40,40,0.35); pointer-events: none; user-select: none;
       opacity: 0; transform-origin: var(--tail, 30%) 100%; }
     .talk::after, .talk::before { content: ''; position: absolute; left: var(--tail, 30%); border-style: solid; border-color: transparent; }
     .talk::before { bottom: calc(-11px * var(--s, 1)); border-width: calc(11px * var(--s, 1)) calc(7px * var(--s, 1)) 0;
-      border-top-color: #2a2a2a; margin-left: calc(-7px * var(--s, 1)); }
+      border-top-color: var(--line); margin-left: calc(-7px * var(--s, 1)); }
     .talk::after { bottom: calc(-7.5px * var(--s, 1)); border-width: calc(8px * var(--s, 1)) calc(5px * var(--s, 1)) 0;
-      border-top-color: #fffdf7; margin-left: calc(-5px * var(--s, 1)); }`;
+      border-top-color: var(--bg); margin-left: calc(-5px * var(--s, 1)); }
+    /* 云朵: a round thought bubble, trailing two little puffs instead of a point. */
+    .talk.v-cloud { --bg: #ffffff; --r: 22; padding: calc(7px * var(--s, 1)) calc(14px * var(--s, 1)); }
+    .talk.v-cloud::before, .talk.v-cloud::after { border: calc(2px * var(--s, 1)) solid var(--line); background: var(--bg); border-radius: 50%; }
+    .talk.v-cloud::before { width: calc(9px * var(--s, 1)); height: calc(9px * var(--s, 1)); bottom: calc(-15px * var(--s, 1)); margin-left: calc(-2px * var(--s, 1)); }
+    .talk.v-cloud::after { width: calc(5px * var(--s, 1)); height: calc(5px * var(--s, 1)); bottom: calc(-24px * var(--s, 1)); margin-left: calc(-5px * var(--s, 1)); }
+    /* 便签: a yellow sticky note, square corners, a little askew. */
+    .talk.v-note { --bg: #fff1a6; --r: 3; --rot: -2.5deg; --sh: 3; }
+    /* 樱花: soft pink, round, rose outline. */
+    .talk.v-sakura { --bg: #ffe3ec; --line: #d9668a; --fg: #7d2a48; --r: 20; }
+    /* 薄荷: mint green with a stitched (dashed) edge. */
+    .talk.v-mint { --bg: #e2f6ec; --line: #3f9a78; --fg: #24564a; --r: 12; --bst: dashed; --sh: 0; }
+    /* 天蓝: a comic panel, thick outline and a deep shadow. */
+    .talk.v-sky { --bg: #e3f0ff; --line: #24466e; --fg: #1f3c60; --r: 8; --bw: 2.5; --sh: 4; }`;
+  const LOOKS = ['classic', 'cloud', 'note', 'sakura', 'mint', 'sky'];
+  let lastLook = 'classic';
   document.head.appendChild(style);
   document.body.appendChild(el);
 
@@ -137,6 +156,13 @@
     const ms = nowMs();
     st.showing = { line, t0: ms, t1: ms + Math.min(7000, 3200 + 140 * line.length) };
     el.textContent = line;
+    let look = 'classic';
+    if (TUNING.bubbleMix) {
+      const others = LOOKS.filter(l => l !== lastLook);
+      look = others[Math.floor(Math.random() * others.length)];
+    }
+    lastLook = look;
+    el.className = look === 'classic' ? 'talk' : `talk v-${look}`;
   }
   function hide() { st.showing = null; el.style.opacity = 0; }
 
@@ -261,7 +287,7 @@
         const a = (ms - st.showing.t0) / 1000, remain = (st.showing.t1 - ms) / 1000;
         const pop = a < 0.25 ? 0.6 + 0.4 * K.smooth(0, 0.25, a) + 0.08 * Math.sin(K.smooth(0, 0.25, a) * Math.PI) : 1;
         el.style.opacity = Math.min(1, a / 0.15, remain / 0.35).toFixed(3);
-        el.style.transform = `scale(${pop.toFixed(3)})`;
+        el.style.transform = `rotate(var(--rot)) scale(${pop.toFixed(3)})`;
       }
     },
   };
