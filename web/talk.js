@@ -56,6 +56,7 @@
     fed: ['好吃！你是最棒的铲屎官！', '吃饱饱，谢谢 Quinn 喵～'],
     pet: ['呼噜呼噜～再摸一下嘛', '嘿嘿，好舒服喵', '再摸摸，我就给你打呼噜'],
     woken: ['喵？我才没睡着！', '我刚刚只是在闭目养神喵'],
+    music: ['戴上耳机，摸鱼模式开启～', '这首歌好好听，Quinn 也听听', '嘘…本猫在听歌喵'],
   };
 
   // What was said today, so no line repeats within a day and the once-a-day ones stay once a day.
@@ -167,6 +168,8 @@
       } else if (name === 'woken') {
         // Coming back after a long while already gets its own hello.
         if (ms - st.backAt > 2000 && Math.random() < 0.6) show(pick(['woken']));
+      } else if (name === 'music') {
+        if (Math.random() < 0.5) show(pick(['music']));
       } else if (name === 'hungry') {
         queue(['energy'], 30);
       }

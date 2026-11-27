@@ -440,6 +440,64 @@
     lick.visible = false;
   }
   head.add(lick);
+
+  // Headphones: a band over the top of the head, passing behind the ears, and a round cup on each
+  // side of the head. Flat colours with an ink line and a pale rim, like every other sticker prop
+  // (shaded in the 3D style). \`setHeadphones(preset, on)\`: \`on\` 0..1 lowers them onto the head.
+  const PHONES = {
+    orange: { band: '#d9822f', cup: '#e8913a', cap: '#f6d7a8', pad: '#5a3a22' },   // 焦糖橘
+    matcha: { band: '#76a05f', cup: '#8db676', cap: '#eaf2dc', pad: '#3f5a35' },   // 抹茶绿
+    sakura: { band: '#eeb0bd', cup: '#f5c4cd', cap: '#fff7f5', pad: '#b8848e' },   // 樱花粉
+    night: { band: '#2b2b33', cup: '#3a3a46', cap: '#8a8a9c', pad: '#16161b' },    // 极夜黑
+    cream: { band: '#e9dcc0', cup: '#f4ecd8', cap: '#c49a6c', pad: '#8a7660' },    // 奶油白
+  };
+  const phones = new THREE.Group();
+  const phoneMats = { band: K.propMat('#ffffff'), cup: K.propMat('#ffffff'), cap: K.propMat('#ffffff'), pad: K.propMat('#ffffff') };
+  {
+    const ink = K.back('#2a2a2a'), pale = K.back('#f6f3e8');
+    // Band: half an ellipse from cup to cup, a little behind the ears.
+    const band = K.limb(phones, { segments: 32, radial: 10, fill: phoneMats.band, outline: ink, edge: 0.009, order: 4 });
+    band.update((t, out) => {
+      const a = Math.PI * t;
+      return out.set(0.6 * Math.cos(a), 0.04 + 0.53 * Math.sin(a), -0.13);
+    }, () => 0.03);
+    // Cups: a rounded pad on each side of the head, turned a little towards the viewer so its
+    // round outer face shows, with a lighter cap in the middle.
+    const ball = new THREE.SphereGeometry(1, 40, 28);
+    for (const side of [-1, 1]) {
+      const cup = new THREE.Group();
+      cup.position.set(side * 0.59, 0.0, -0.02);
+      cup.rotation.y = side * 0.55;
+      const shell = (mat, sx, sy, sz, order) => {
+        const m = new THREE.Mesh(ball, mat);
+        m.scale.set(sx, sy, sz);
+        m.renderOrder = order;
+        return m;
+      };
+      const body = shell(phoneMats.cup, 0.075, 0.16, 0.15, 5);
+      // The cushion, a darker ring where the cup meets the head.
+      const pad = shell(phoneMats.pad, 0.05, 0.15, 0.14, 5);
+      pad.position.x = -side * 0.045;
+      const cap = shell(phoneMats.cap, 0.03, 0.095, 0.09, 6);
+      cap.position.x = side * 0.055;
+      cup.add(shell(pale, 0.075 + 0.026, 0.16 + 0.026, 0.15 + 0.026, 2), shell(ink, 0.075 + 0.011, 0.16 + 0.011, 0.15 + 0.011, 3), pad, body, cap);
+      phones.add(cup);
+    }
+    phones.visible = false;
+  }
+  head.add(phones);
+  let phonesPreset = '';
+  function setHeadphones(preset, on) {
+    phones.visible = on > 0.01;
+    if (!phones.visible) return;
+    const c = PHONES[preset] || PHONES.orange;
+    if (preset !== phonesPreset) {
+      phonesPreset = preset;
+      for (const k of Object.keys(phoneMats)) phoneMats[k].uniforms.uColor.value.set(c[k]);
+    }
+    // Lowered on from above, with a tiny settle at the end.
+    phones.position.y = (1 - on) * 0.45 - 0.015 * Math.sin(on * Math.PI);
+  }
   function setLick(v, side = 1) {
     lick.visible = v > 0.03;
     lick.scale.set(1, v, 1);
@@ -600,7 +658,9 @@
   const COLLARS = { red: '#d9483b', blue: '#4f8fd8', pink: '#ee8fb4', green: '#5fae6a' };
   // eye: 'auto' follows the coat; 'odd' is one blue and one gold eye.
   // style: '2d' is flat colour like a sticker; '3d' adds soft volume shading.
-  const look = { style: '2d', coat: 'black', pattern: 'auto', eye: 'auto', shine: 'classic', blush: false, whiskers: true, collar: 'none' };
+  // headphones: 'none', or a colour from PHONES to wear them all the time.
+  const look = { style: '2d', coat: 'black', pattern: 'auto', eye: 'auto', shine: 'classic', blush: false, whiskers: true, collar: 'none',
+    headphones: 'none' };
   function setLook(o) {
     Object.assign(look, o);
     const c = COATS[look.coat] || COATS.black;
@@ -615,6 +675,7 @@
       e.tilt = 0.2 + 0.5 * ((c.ears || 1) - 1);
     }
     K.mouseProp.setStyle(look.style);
+    K.setPropShade(solid ? 0.6 : 0);
     chinLine.visible = !solid;
     chinMat.uniforms.uColor.value.set(c.ink || c.arm);
     rimMat.color.set(c.rim);
@@ -656,7 +717,7 @@
     tailTip: out => tailCurve.getPoint(1, out),
     petMeshes: [headMesh, ...ears.map(e => e.mesh)],
     dragMeshes: [bodyMesh, tail.body, ...arms.flatMap(a => [a.limb.body, a.paw]), ...hind],
-    updateArm, updateTail, setLook, look, setYawn, setLick, setFrown: v => face.userData.setFrown(v),
+    updateArm, updateTail, setLook, look, setYawn, setLick, setHeadphones, phonePresets: Object.keys(PHONES), setFrown: v => face.userData.setFrown(v),
     // The coat table, so a dev page can try out variants of a coat.
     coats: COATS,
   };

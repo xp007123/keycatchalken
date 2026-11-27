@@ -106,6 +106,8 @@ struct Settings {
     eye: String,
     shine: String,
     collar: String,
+    /// Headphones worn all the time: "none" or a colour preset (orange, matcha, sakura, night, cream).
+    headphones: String,
     blush: bool,
     whiskers: bool,
     privacy: bool,
@@ -133,6 +135,7 @@ impl Host {
             eye: text("eyeColor", "auto"),
             shine: text("eyeShine", "classic"),
             collar: text("collar", "none"),
+            headphones: text("headphones", "none"),
             blush: self.store.get("blush") == Some(&Value::Bool(true)),
             whiskers: self.store.get("whiskers") != Some(&Value::Bool(false)),
             privacy: self.store.get("privacy") == Some(&Value::Bool(true)),
@@ -210,6 +213,7 @@ fn push_options(app: &AppHandle) {
         "blush": s.blush,
         "whiskers": s.whiskers,
         "collar": s.collar,
+        "headphones": s.headphones,
         "privacy": s.privacy,
         "sleepAfter": if s.sleep_after > 0.0 { s.sleep_after } else { 1e9 },
         "tune": s.tune,
@@ -729,6 +733,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     };
     let coat = s.coat.as_str();
     let mut items = vec![feed_menu(app, &s)?];
+    items.push(action(app, "play:yarn", "丢个毛线球")?);
+    items.push(action(app, "play:music", "听会儿歌")?);
     let keys_today = host(app).keys_today;
     if keys_today > 0 && s.tune.get("milestoneOn") != Some(&Value::Bool(false)) {
         items.push(note(app, &format!("今天敲了 {} 下", grouped(keys_today)))?);
@@ -784,6 +790,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         submenu(app, "眼睛颜色", eyes)?,
         submenu(app, "眼睛高光", shine)?,
         submenu(app, "项圈", collar)?,
+        submenu(app, "耳机", choice(app, "headphones", &json!(s.headphones), &[
+            ("不戴（偶尔自己戴上听歌）", json!("none")),
+            ("焦糖橘", json!("orange")),
+            ("抹茶绿", json!("matcha")),
+            ("樱花粉", json!("sakura")),
+            ("极夜黑", json!("night")),
+            ("奶油白", json!("cream")),
+        ])?)?,
         toggle(app, "腮红", "blush", s.blush)?,
         toggle(app, "胡须", "whiskers", s.whiskers)?,
     ])?);
@@ -863,6 +877,8 @@ fn on_menu(app: &AppHandle, id: &str) {
         }
     } else if let Some(value) = id.strip_prefix("scale:").and_then(|raw| raw.parse::<f64>().ok()) {
         apply_scale(app, value, true);
+    } else if let Some(play) = id.strip_prefix("play:").filter(|p| *p == "yarn" || *p == "music") {
+        js(app, &format!("cat.act('{play}')"));
     } else if let Some(food) = id.strip_prefix("feed:").filter(|food| FOODS.iter().any(|(known, _)| known == food)) {
         js(app, &format!("cat.feed('{food}')"));
     } else {
