@@ -1000,6 +1000,7 @@
       const t = now();
       S.busyUntil = t + 14;
       if (name === 'fireworks') K.extras.fireworks(4);
+      else if (name === 'crown') K.extras.crownNow();
       else if (name === 'rain') {
         S.asleep = false; S.sleep = 0; S.lastInput = t;
         K.extras.rainNow();

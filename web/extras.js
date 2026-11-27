@@ -93,7 +93,7 @@
   // Typing tally. Only the count is kept, per day, never which keys.
   const KEY_STORE = 'quinn.keys';
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
-  let tally = { date: today(), n: 0 }, dirty = false, lastSave = 0, crownAt = -100;
+  let tally = { date: today(), n: 0 }, dirty = false, lastSave = 0, crownAt = null;
   try {
     const saved = JSON.parse(localStorage.getItem(KEY_STORE) || 'null');
     if (saved && saved.date === tally.date && saved.n > 0) tally = saved;
@@ -107,7 +107,10 @@
     { n: 20000, line: '两万下…手指还好吗？歇歇吧', bursts: 4 },
     { n: 30000, line: '三万下！今天真的可以收工了', bursts: 5 },
   ];
-  const CROWN_AT = 10000;
+  // The crown is worn for a while after it is won, then floats off; it doesn't come back on a
+  // restart, so it is never there without the moment that explains it.
+  const CROWN_FOR = 600, CROWN_OFF = 1;
+  let crownBye = false;
   const grouped = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   function key() {
     if (tally.date !== today()) tally = { date: today(), n: 0 };
@@ -118,7 +121,7 @@
     if (!m) return;
     K.talk.say(m.line);
     fireworks(m.bursts);
-    if (m.crown) crownAt = clock;
+    if (m.crown) { crownAt = clock; crownBye = false; }
   }
 
   const crown = sprite(crownTex, 45);
@@ -224,6 +227,8 @@
     keysToday: () => (tally.date === today() ? tally.n : 0),
     summary: () => `今天敲了 ${grouped(K.extras.keysToday())} 下，辛苦啦`,
     fireworks,
+    // For testing: put the crown on as if won \`ago\` seconds back.
+    crownNow(ago = 0) { crownAt = clock - ago; crownBye = false; },
     // Where the bug is at `u` (0..1 through the swat), in world space; false once it is gone.
     // It flies in from the upper right, loops in front of the cat, and drops within reach.
     bugAt(u, caught, out) {
@@ -362,15 +367,19 @@
         window.webkit?.messageHandlers?.cat?.postMessage({ stats: { keys: tally.n } });
       }
 
-      // The crown: worn for the rest of the day once the tally passes ten thousand.
-      const crowned = TUNING.milestoneOn && K.extras.keysToday() >= CROWN_AT;
+      // The crown: popped on at ten thousand keys, worn for ten minutes, then it floats up and fades.
+      const a = t - crownAt;
+      const crowned = TUNING.milestoneOn && crownAt !== null && a >= 0 && a < CROWN_FOR + CROWN_OFF;
       crown.visible = crowned;
       if (crowned) {
-        const a = t - crownAt, pop = a < 0.5 ? 0.3 + 0.7 * smooth(0, 0.35, a) + 0.25 * Math.sin(smooth(0, 0.5, a) * Math.PI) : 1;
+        const pop = a < 0.5 ? 0.3 + 0.7 * smooth(0, 0.35, a) + 0.25 * Math.sin(smooth(0, 0.5, a) * Math.PI) : 1;
+        const off = smooth(CROWN_FOR, CROWN_FOR + CROWN_OFF, a);
+        if (off > 0 && !crownBye) { crownBye = true; K.talk.say('皇冠先收好啦，下次一万下再戴喵'); }
         const roll = K.cat.headPivot.rotation.z + K.cat.head.rotation.z;
-        crown.position.set(-Math.sin(roll) * 0.98, 0.98 + (a < 0.5 ? (1 - smooth(0, 0.35, a)) * 0.5 : 0), 0.05).applyMatrix4(K.cat.headPivot.matrixWorld);
+        crown.position.set(-Math.sin(roll) * 0.98, 0.98 + (a < 0.5 ? (1 - smooth(0, 0.35, a)) * 0.5 : 0) + 0.35 * off, 0.05).applyMatrix4(K.cat.headPivot.matrixWorld);
         crown.scale.set(0.4 * pop, 0.325 * pop, 1);
         crown.material.rotation = roll;
+        crown.material.opacity = 1 - off;
       }
 
       // Showers come round every so often while things are quiet.
