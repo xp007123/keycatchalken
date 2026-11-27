@@ -24,6 +24,9 @@
     background: var(--accent); border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; }
   input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
   .row.off { opacity: 0.45; }
+  .seg { display: flex; gap: 6px; margin-top: 8px; }
+  .seg button { flex: 1; padding: 6px 0; }
+  .seg button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   .bar { display: flex; gap: 8px; margin-top: 16px; }
   button { flex: 1; padding: 7px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--card);
     color: var(--text); font: inherit; cursor: pointer; }
@@ -81,7 +84,18 @@ function render() {
       label.textContent = it.label;
       head.append(label);
       let input;
-      if (it.type === 'toggle') {
+      if (it.type === 'choice') {
+        input = document.createElement('div');
+        input.className = 'seg';
+        input.buttons = it.options.map(([v, text]) => {
+          const b = document.createElement('button');
+          b.textContent = text;
+          b.addEventListener('click', () => set(it, v));
+          input.append(b);
+          return [v, b];
+        });
+        row.append(head, input);
+      } else if (it.type === 'toggle') {
         input = document.createElement('input');
         input.type = 'checkbox';
         input.addEventListener('change', () => set(it, input.checked));
@@ -114,10 +128,13 @@ function render() {
 function show() {
   for (const { it, input } of Object.values(inputs)) {
     if (it.type === 'toggle') input.checked = values[it.key];
+    else if (it.type === 'choice') for (const [v, b] of input.buttons) b.classList.toggle('on', v === values[it.key]);
     else { input.value = values[it.key]; input.show(values[it.key]); }
   }
   // A switched-off group greys out its sliders.
-  for (const [toggle, group] of [['annoyOn', TUNING_SCHEMA[0].group], ['curiousOn', TUNING_SCHEMA[1].group], ['idleOn', TUNING_SCHEMA[2].group], ['talkOn', TUNING_SCHEMA[3].group], ['hungerOn', TUNING_SCHEMA[4].group]]) {
+  const masters = ['annoyOn', 'curiousOn', 'idleOn', 'talkOn', 'hungerOn'];
+  const groupOf = key => (TUNING_SCHEMA.find(g => g.items.some(it => it.key === key)) || {}).group;
+  for (const [toggle, group] of masters.map(k => [k, groupOf(k)]).filter(([, g]) => g)) {
     for (const { it, row } of Object.values(inputs)) {
       if (row.dataset.group === group && it.key !== toggle) row.classList.toggle('off', !values[toggle]);
     }

@@ -56,7 +56,15 @@
     fed: ['好吃！你是最棒的铲屎官！', '吃饱饱，谢谢 Quinn 喵～'],
     pet: ['呼噜呼噜～再摸一下嘛', '嘿嘿，好舒服喵', '再摸摸，我就给你打呼噜'],
     woken: ['喵？我才没睡着！', '我刚刚只是在闭目养神喵'],
-    music: ['戴上耳机，摸鱼模式开启～', '这首歌好好听，Quinn 也听听', '嘘…本猫在听歌喵'],
+    // Listening to Hins (张敬轩). Song titles and nicknames only, never lyrics.
+    music: ['单曲循环《断点》中，勿扰喵', '听《春秋》听到眼眶湿湿的…', '《樱花树下》，想和 Quinn 去同济看樱花',
+      '《酷爱》前奏一响，尾巴就停不下来', '《餘震》好好听，本猫心跳也跟着震', '《只是太爱你》…说的是小鱼干啦',
+      '《迷失表参道》？本猫只想迷失在猫粮店', '《过客》？本猫可是常驻嘉宾喵', 'Hins 一开口，耳朵都酥了',
+      '轩仔开演唱会，我们一起去好不好', '戴上耳机，今天的 BGM 是张敬轩', '跟着 Hins 哼两句…喵～喵～',
+      '《披风》一响，本猫也想披件小斗篷', '《不吐不快》！可是本猫只想吐毛球', '听《俏郎君》，本猫也是俏郎君',
+      '《无尽》循环中，小鱼干也要无尽供应', '高音一上去，本猫胡须都竖起来了', '红馆前排位，本猫帮你抢！',
+      '一首张敬轩，摸鱼五分钟，合理', '轩仔的声音，是今天的充电宝', 'Quinn 最爱哪首轩仔？告诉本猫',
+      '戴耳机的猫，是不是有点酷'],
   };
 
   // What was said today, so no line repeats within a day and the once-a-day ones stay once a day.
@@ -169,7 +177,7 @@
         // Coming back after a long while already gets its own hello.
         if (ms - st.backAt > 2000 && Math.random() < 0.6) show(pick(['woken']));
       } else if (name === 'music') {
-        if (Math.random() < 0.5) show(pick(['music']));
+        show(pick(['music']));
       } else if (name === 'hungry') {
         queue(['energy'], 30);
       }
@@ -228,7 +236,7 @@
       }
       // Now and then, a little chat, matched to the time of day.
       if (ms > st.nextRandom) {
-        st.nextRandom = ms + TUNING.talkEvery * MIN * (0.7 + 0.6 * Math.random());
+        st.nextRandom = ms + TUNING.talkEvery / K.stage.rate() * MIN * (0.7 + 0.6 * Math.random());
         const kinds = ['praise', 'praise', 'praise', 'animals', 'animals', 'psych', 'freedom'];
         if (weekday && h >= 9 && h < 19) kinds.push('work', 'freedom');
         if (evening) kinds.push('novel');
@@ -238,7 +246,7 @@
 
       // Speak in a pause in typing, not in its sleep, one bubble at a time.
       while (st.queue.length && st.queue[0].until < ms) st.queue.shift();
-      if (!st.showing && st.queue.length && ms - st.lastKey > 3000 && !asleep) show(st.queue.shift().line);
+      if (!st.showing && st.queue.length && ms - st.lastKey > 3000 && !asleep && !K.stage.busy()) show(st.queue.shift().line);
 
       // Keep the bubble just above the head, its tail pointing down at it, inside the window.
       if (st.showing && head) {

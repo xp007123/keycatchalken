@@ -97,6 +97,14 @@
       for (const k in w) w[k] *= 0.5;
       Object.assign(w, { beg: 5, meow: 2 });
     } else if (TUNING.hungerOn && S.full > 80) w.knead *= 1.5;
+    // State: a starving cat doesn't play; late at night it is sleepy rather than playful; just
+    // petted or fed, it is content and kneads.
+    const h = new Date().getHours(), t = now();
+    if (hungry() && S.full < STARVING) w.yarn = w.music = w.bug = 0;
+    if (h >= 22 || h < 6) { w.yawn *= 2; w.knead *= 1.3; w.yarn *= 0.4; w.bug *= 0.4; w.music *= 0.4; }
+    if (t - (S.lastPetAt || -1e9) < 90 || t - (S.lastFedAt || -1e9) < 90) w.knead *= 2;
+    // Big scenes only when the director says so (one at a time, a rest between, a daily cap).
+    for (const k of Object.keys(w)) if (K.stage.isBig(k) && !K.stage.canStart(k)) w[k] = 0;
     let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
     for (const [kind, weight] of Object.entries(w)) {
       if (weight <= 0) continue;
@@ -153,6 +161,7 @@
     popFx(K.labelTexture('吧唧', 'z').tex, at, 0.2, 0.8, V(0.05, 0.25, 0), 2);
   }
   function afterMeal(t, meal) {
+    S.lastFedAt = t;
     S.lickT0 = t + 0.3;
     S.happyUntil = t + 2;
     const n = FOODS[meal.kind].hearts || 1;
@@ -168,7 +177,8 @@
     // `caught`: whether the swat at a bug lands (it mostly does).
     S.act = { kind, t0: t, dur: ACTS[kind], side: Math.random() < 0.5 ? -1 : 1, puffed: false, caught: Math.random() < 0.75 };
     // Rest a while (`idleGap` on average, give or take 40%) after the fidget ends.
-    S.nextAct = t + S.act.dur + TUNING.idleGap * (0.6 + 0.8 * Math.random()) * (hungry() && S.full < STARVING ? 0.5 : 1);
+    S.nextAct = t + S.act.dur + TUNING.idleGap / K.stage.rate() * (0.6 + 0.8 * Math.random()) * (hungry() && S.full < STARVING ? 0.5 : 1);
+    K.stage.started(kind);
     S.busyUntil = Math.max(S.busyUntil, t + S.act.dur + 0.8);
   }
 
@@ -543,6 +553,7 @@
       else S.nextAct = t + 1;
     }
     const act = S.act, actU = act ? (t - act.t0) / act.dur : 0;
+    K.stage.sync(act && K.stage.isBig(act.kind) ? act.kind : K.extras.raining() ? 'rain' : null);
     // Smooth in, hold, smooth out over the fidget's duration.
     const actEnv = act ? smooth(0, 0.25, actU) * (1 - smooth(0.7, 1, actU)) : 0;
     // How much of each of the bigger fidgets is showing right now, 0..1.
@@ -1016,6 +1027,7 @@
       const tapped = down && !S.petting;
       S.petting = down;
       S.petStart = down ? (S.petStart < 0 ? t : S.petStart) : -1;
+      if (down) S.lastPetAt = t;
       if (tapped && !S.cross) {
         // A tap on the head: it squashes down and bounces back like jelly, eyes shut happily,
         // a heart floats up.

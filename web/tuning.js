@@ -3,6 +3,10 @@
 // in with `cat.options({ tune: {...} })`. Values are in the units shown in the window.
 'use strict';
 const TUNING_SCHEMA = [
+  { group: '整体', items: [
+    { key: 'lively', label: '热闹程度', type: 'choice', def: 2, options: [[1, '安静'], [2, '适中'], [3, '活泼']],
+      hint: '一键调整小动作、小剧情和气泡出现得多勤。下雨、毛线球、飞虫、听歌这些大情景一次只演一个，中间会歇一会儿，每天也有次数上限，热闹程度越高，歇得越短、次数越多。下面的各项是在这个基础上的细调。' },
+  ] },
   { group: '不耐烦（尾巴捶桌）', items: [
     { key: 'annoyOn', label: '会不耐烦', type: 'toggle', def: true,
       hint: '关掉后不会再生气，也不会甩尾巴捶桌。' },
