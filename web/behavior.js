@@ -79,7 +79,7 @@
   // 'beg' and 'meow' come up when the cat is hungry; 'rumble' (holding its tummy as it growls) and
   // 'flop' (flopping down, chin on the desk, looking up at you) when it is starving.
   const ACTS = { tilt: 1.8, ear: 0.4, slowBlink: 1.4, look: 2.2, tail: 1, yawn: 2.6, knead: 4.8, shake: 1.3,
-    beg: 3.2, meow: 1.6, rumble: 2.4, flop: 4.5, bug: 5, music: 9, yarn: 8.4 };
+    beg: 3.2, meow: 1.6, rumble: 2.4, flop: 4.5, bug: 5, music: 9, yarn: 9 };
   // Fidgets that hold the cat's whole attention: keys don't break them off. The bug and the yarn
   // also take both paws off the keys; the music only takes the head, so typing carries on.
   const KEEP_ACTS = new Set(['bug', 'yarn', 'music']);
@@ -359,15 +359,16 @@
     const actAt = act ? (t - act.t0) / act.dur : 0;
     const yarnAge = act && act.kind === 'yarn' ? t - act.t0 : -1;
     const swat = yarnAge >= 0 ? K.extras.yarnPaw(name, yarnAge, tmp) : null;
-    if (yarnAge >= 0 && yarnAge < 6.9) {
+    if (yarnAge >= 0 && yarnAge < 7.3) {
       // Batting the ball of yarn: each paw comes up beside it in turn and pats it across; in
       // between, both hover just off the keys, ready.
       if (swat) { target = swat.target; hz = swat.hz; damping = 0.7; }
       else {
         const arm = cat.arms[paw.side < 0 ? 0 : 1];
         cat.attach(arm.shoulderLocal, arm.shoulder);
-        target = tmp.set(arm.shoulder.x + paw.side * 0.02, 0.33, 0.72);
-        hz = 5;
+        // Up and ready, a little forward, bobbing with excitement.
+        target = tmp.set(arm.shoulder.x + paw.side * 0.04, 0.38 + 0.03 * Math.sin(t * 11 + paw.side), 0.74);
+        hz = 6;
       }
     } else if (act && act.kind === 'bug' && actAt < 0.9) {
       // Both paws come off the keys. The right one is held up, ready, while the cat watches the
@@ -682,6 +683,16 @@
     shift = mix(shift, 0.16, eat);
     hunch += 0.14 * eat;
     squash += 0.04 * eat + 0.1 * starve + 0.18 * flop + 0.025 * rumbleShake + 0.05 * fun.wet;
+    // Playing with the yarn: crouched low and wiggling before it pounces, the chest leaning after
+    // the ball wherever it rolls, a jolt with each swat.
+    if (actIs('yarn')) {
+      const yb = K.extras.yarnBody(t - act.t0);
+      shift += 0.22 * yb.lean * yarnWatch + 0.05 * yb.crouch * Math.sin(t * 17);
+      hunch += 0.22 * yb.crouch + 0.1 * yarnWatch;
+      squash += 0.09 * yb.crouch - 0.04 * yb.swat;
+      if (yb.swat > 0.9 && !act.jolted) { act.jolted = true; P.squash.kick(0.3); P.pitch.kick(0.6); }
+      if (yb.swat < 0.5) act.jolted = false;
+    }
     // Getting ready to pounce on a bug: a low crouch and the hunter's wiggle, faster as it comes.
     const pounce = actIs('bug') ? smooth(0.3, 0.6, actU) * (1 - smooth(0.74, 0.8, actU)) : 0;
     hunch += 0.12 * pounce;
@@ -773,7 +784,7 @@
     // rubbed, go out sideways ("airplane ears") when cross; a fidget flicks one of them.
     P.ears.step(0.1 * S.excite * (1 - cross) + 0.12 * curious - 0.22 * S.rub - 0.55 * cross
       - 0.25 * yawn - 0.15 * knead + 0.1 * eat - 0.25 * refusing - 0.15 * hunger - 0.1 * beg - 0.2 * rumble
-      - 0.3 * starve - 0.15 * meow - 0.2 * flop + 0.14 * bugWatch - 0.35 * fun.wet + 0.1 * yarnWatch - 0.2 * pat, dt);
+      - 0.3 * starve - 0.15 * meow - 0.2 * flop + 0.14 * bugWatch - 0.35 * fun.wet + 0.2 * yarnWatch - 0.2 * pat, dt);
     for (const e of cat.ears) {
       const flick = act && act.kind === 'ear' && e.s === act.side ? Math.sin(actU * Math.PI * 3) * 0.3 * (1 - actU) : 0;
       e.group.rotation.z = -e.s * (e.tilt - P.ears.x) + flick + shiver * 0.3;
@@ -847,7 +858,7 @@
     // The tip touches the right half of the space bar; the tail is about 0.075 thick there.
     if (tailTap.key) keyboard.keyTop(tailTap.key, tailTap.tip).add(V(0.36, 0.075 + tailTap.hover, -0.02));
     const reach = smooth(0, 1, tailTap.reach);
-    cat.updateTail(S.tailPhase, (1 - S.sleep) * (1 + 0.6 * S.excite + flickTail + 1.5 * S.annoy + 2 * shakeEnv + 0.6 * happy) * (1 - 0.5 * knead) * (1 - 0.4 * hunger) * (1 - 0.7 * starve) * (1 - cross) * (1 - 0.55 * curious) * (1 - reach), Math.max(S.sleep, 0.55 * starve, 0.8 * flop, 0.45 * fun.wet),
+    cat.updateTail(S.tailPhase, (1 - S.sleep) * (1 + 0.6 * S.excite + flickTail + 1.5 * S.annoy + 2 * shakeEnv + 0.6 * happy + 2.2 * yarnWatch) * (1 - 0.5 * knead) * (1 - 0.4 * hunger) * (1 - 0.7 * starve) * (1 - cross) * (1 - 0.55 * curious) * (1 - reach), Math.max(S.sleep, 0.55 * starve, 0.8 * flop, 0.45 * fun.wet),
       cross * (1 - reach), S.thumpLift, lash, reach, tailTap.tip);
 
     // The desk hops when the tail lands; the anger mark pulses on each thump.
