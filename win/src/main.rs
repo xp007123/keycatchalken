@@ -733,8 +733,6 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     };
     let coat = s.coat.as_str();
     let mut items = vec![feed_menu(app, &s)?];
-    items.push(action(app, "play:yarn", "丢个毛线球")?);
-    items.push(action(app, "play:music", "听会儿歌")?);
     let keys_today = host(app).keys_today;
     if keys_today > 0 && s.tune.get("milestoneOn") != Some(&Value::Bool(false)) {
         items.push(note(app, &format!("今天敲了 {} 下", grouped(keys_today)))?);
@@ -877,8 +875,6 @@ fn on_menu(app: &AppHandle, id: &str) {
         }
     } else if let Some(value) = id.strip_prefix("scale:").and_then(|raw| raw.parse::<f64>().ok()) {
         apply_scale(app, value, true);
-    } else if let Some(play) = id.strip_prefix("play:").filter(|p| *p == "yarn" || *p == "music") {
-        js(app, &format!("cat.act('{play}')"));
     } else if let Some(food) = id.strip_prefix("feed:").filter(|food| FOODS.iter().any(|(known, _)| known == food)) {
         js(app, &format!("cat.feed('{food}')"));
     } else {

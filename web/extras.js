@@ -167,12 +167,14 @@
   const trail = [];
   // The game: where the ball is, which paw hits it when. x runs along the keyboard (screen left
   // to right); the cat's paws rest at about x = -0.36 (left) and 0.36 (right).
+  // 'both' is the pounce: both paws come down on the ball and pin it there for \`hold\` seconds.
   const YARN = {
-    dur: 8.4,
-    enter: { from: 1.6, to: 0.27, t: 1.3 },
+    dur: 9,
+    enter: { from: 1.6, to: 0.3, t: 1.3 },
     hits: [
-      { t: 1.9, paw: 'R', to: -0.24 }, { t: 2.9, paw: 'L', to: 0.25 }, { t: 3.85, paw: 'R', to: -0.2 },
-      { t: 4.8, paw: 'L', to: 0.22 }, { t: 5.9, paw: 'R', to: 1.9, away: true },
+      { t: 2.0, paw: 'R', to: -0.3 }, { t: 2.75, paw: 'L', to: 0.3 }, { t: 3.45, paw: 'R', to: -0.06 },
+      { t: 4.25, paw: 'both', to: -0.06, hold: 0.8 },
+      { t: 5.6, paw: 'L', to: 0.3 }, { t: 6.4, paw: 'R', to: 1.9, away: true },
     ],
   };
   let yarnY = 0.3, yarnZ = 0.8;
@@ -183,7 +185,7 @@
     let x = e.to;
     for (const h of YARN.hits) {
       if (age < h.t) return x;
-      const span = h.away ? 1.1 : 0.55, u = Math.min(1, (age - h.t) / span);
+      const span = h.away ? 1.1 : h.paw === 'both' ? 0.15 : 0.5, u = Math.min(1, (age - h.t) / span);
       const nx = mix(x, h.to, h.away ? u * u * 0.4 + u * 0.6 : 1 - (1 - u) ** 2.4);
       if (u < 1) return nx;
       x = h.to;
@@ -257,10 +259,14 @@
       if (!on) { trail.length = 0; return null; }
       // A little hop as each swat lands.
       let hop = 0;
-      for (const h of YARN.hits) { const d = age - h.t; if (d > 0 && d < 0.3) hop = Math.sin(d / 0.3 * Math.PI) * 0.05; }
+      for (const h of YARN.hits) {
+        const d = age - h.t;
+        if (h.paw === 'both') { if (d > 0 && d < h.hold) hop = -0.035 * Math.sin(Math.min(1, d / 0.12) * Math.PI / 2); }
+        else if (d > 0 && d < 0.32) hop = Math.sin(d / 0.32 * Math.PI) * 0.09;
+      }
       yarnBall.position.set(x, yarnY + hop, yarnZ);
       // Rolling without slipping along x, plus a slow wobble about the other axes.
-      yarnCore.rotation.set(0.3 * Math.sin(age * 1.3), 0.4 * age, -(x - YARN.enter.from) / YR);
+      yarnCore.rotation.set(0.3 * Math.sin(age * 1.3), 0.6 * age, -(x - YARN.enter.from) / YR);
       // The loose end: the last stretch of the path the ball took, lying on the keys.
       const last = trail[trail.length - 1];
       if (!last || Math.abs(last.x - x) > 0.012) trail.push(V(x, yarnY - YR + 0.012, yarnZ + 0.03));
@@ -280,18 +286,34 @@
     // Where a paw should be at \`age\` (null: no swat to make just now). The paw comes up beside
     // the ball, on its own side, and pats it towards the other paw.
     yarnPaw(name, age, out) {
+      const side = name === 'R' ? 1 : -1;
       for (const h of YARN.hits) {
-        if (h.paw !== name) continue;
-        const d = age - h.t;
-        if (d < -0.45 || d > 0.22) continue;
-        const side = name === 'R' ? 1 : -1, bx = yarnX(h.t);
-        if (d < -0.07) return { target: out.set(bx + side * 0.13, yarnY + 0.15, yarnZ - 0.02), hz: 7 };
-        return { target: out.set(bx + side * 0.03, yarnY + 0.01, yarnZ), hz: 14 };
+        const both = h.paw === 'both';
+        if (h.paw !== name && !both) continue;
+        const d = age - h.t, bx = yarnX(h.t);
+        if (d < -0.5 || d > (both ? h.hold : 0.24)) continue;
+        // Wind up: the paw rises high above and to the side of the ball...
+        if (d < -0.08) return { target: out.set(bx + side * (both ? 0.14 : 0.2), yarnY + (both ? 0.36 : 0.3), yarnZ - 0.04), hz: 8 };
+        // ...then comes down hard: a swat from the side, or both paws on top for a pounce.
+        if (both) return { target: out.set(bx + side * 0.07, yarnY + YR * 0.6, yarnZ), hz: 16 };
+        return { target: out.set(bx + side * 0.02, yarnY, yarnZ), hz: 16 };
       }
       return null;
     },
+    // How the cat should move for the game at \`age\`: \`crouch\` (low and wiggling before the
+    // first swat and before the pounce), \`lean\` (the ball's x, to lean after it), and \`swat\` (a
+    // jolt at each hit).
+    yarnBody(age) {
+      let crouch = smooth(0.4, 1.2, age) * (1 - smooth(1.85, 2.05, age));
+      const p = YARN.hits.find(h => h.paw === 'both');
+      crouch = Math.max(crouch, smooth(p.t - 0.7, p.t - 0.35, age) * (1 - smooth(p.t + p.hold, p.t + p.hold + 0.3, age)));
+      let swat = 0;
+      for (const h of YARN.hits) { const d = age - h.t; if (d > 0 && d < 0.25) swat = Math.max(swat, 1 - d / 0.25); }
+      return { crouch, lean: clamp(yarnX(age), -0.4, 0.6), swat };
+    },
     // Hearts once the ball has rolled away, for a good game.
     yarnHearts(age, t) { return age > YARN.hits[YARN.hits.length - 1].t + 0.9; },
+    yarnPounced(age) { const p = YARN.hits.find(h => h.paw === 'both'); return age > p.t && age < p.t + p.hold; },
     // Music notes drifting up from the headphones.
     note(at, side) {
       particle(noteTex, at, V(side * (0.18 + Math.random() * 0.12), 0.32 + Math.random() * 0.12, 0), { life: 1.6, size: 0.2, color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)] });
